@@ -10,9 +10,9 @@ export const sites: Site[] = [
 ];
 
 export const techs: Tech[] = [
-  { id: "mihar", name: "Mihar Kathiriya", initials: "MK", color: "#256b73", open: 8, capacity: 12, sites: ["SBEC", "OK"], status: "On site" },
-  { id: "rodello", name: "Rodello Manalastas", initials: "RM", color: "#256b73", open: 6, capacity: 12, sites: ["PPK", "OMEC"], status: "Available" },
-  { id: "joe", name: "Joe Gallenger", initials: "JG", color: "#256b73", open: 10, capacity: 12, sites: ["MEC", "CPS"], status: "Focused" },
+  { id: "mihar", name: "Mihar Kathiriya", initials: "MK", color: "#256b73", open: 0, capacity: 12, sites: ["SBEC", "OK"], status: "Available" },
+  { id: "rodello", name: "Rodello Manalastas", initials: "RM", color: "#256b73", open: 0, capacity: 12, sites: ["PPK", "OMEC"], status: "Available" },
+  { id: "joe", name: "Joe Gallenger", initials: "JG", color: "#256b73", open: 0, capacity: 12, sites: ["MEC", "CPS"], status: "Available" },
 ];
 
 export const people: Person[] = [
@@ -45,7 +45,7 @@ const ticket = (partial: Partial<Ticket> & Pick<Ticket, "id" | "number" | "subje
   ...partial,
 });
 
-export const tickets: Ticket[] = [
+export const ticketFixtures: Ticket[] = [
   ticket({ id: "1048", number: "FHQ-1048", subject: "Projector shows 'No signal' before period three", digest: "Classroom projector has no signal before a 10:40 class.", requester: "Tara Whitehorse", requesterEmail: "tara.whitehorse@standingbuffalo.edu", requesterRole: "Grade 7 Teacher", siteId: "sbec", room: "204", status: "New", priority: "High", assignee: undefined, category: "AV & displays", service: "Classroom projector", createdAt: "Today, 8:42 AM", updatedAt: "4m ago", doomMinutes: 38, doomRisk: 92, frustration: 46, affected: 28, asks: ["Restore the projector before period three", "Check why the teacher laptop no longer detects HDMI"], missing: ["Whether another laptop works on this cable"], suggestedAction: "Reseat the HDMI wall plate, then test input 2 - this fixed 4 of 6 matching SBEC incidents.", originalEmail: "Morning,\n\nI'm in room 204 at Standing Buffalo. The projector says NO SIGNAL again. The kids were trying it during homeroom and it worked yesterday. I unplugged the laptop and put it back but nothing. I've got my grade 7s back in here at 10:40 and the lesson is all on the slides. Also the cart by the window has two Chromebooks that won't charge - might be separate.\n\nCan someone help before then?\n\nTara Whitehorse\nGrade 7 - Room 204", fields: [
     { label: "Requester", value: "Tara Whitehorse · Grade 7", confidence: 100, source: "Directory record imported Aug 12" },
     { label: "Site", value: "Standing Buffalo", confidence: 100, source: "Exact match: tara.whitehorse@standingbuffalo.edu" },
@@ -64,17 +64,21 @@ export const tickets: Ticket[] = [
   ticket({ id: "1040", number: "FHQ-1040", subject: "Teams camera not detected for parent meeting", requester: "Megan Okanese", siteId: "ok", status: "Resolved", priority: "High", assignee: "Mihar Kathiriya", category: "Meetings", service: "Microsoft Teams", doomMinutes: 999, doomRisk: 0, updatedAt: "Yesterday" }),
 ];
 
-export const timeline: TimelineEvent[] = [
+export const tickets: Ticket[] = [];
+
+export const timelineFixtures: TimelineEvent[] = [
   { id: "t1", kind: "email", actor: "Tara Whitehorse", title: "Request received", body: "Projector reports no signal before the 10:40 class. Two Chromebook charging issues were also mentioned.", at: "8:42 AM" },
   { id: "t2", kind: "routing", actor: "Routing engine", title: "Routed to Standing Buffalo", body: "Exact sender match with the Aug 12 directory snapshot. Body and room signals agree.", at: "8:42 AM" },
   { id: "t3", kind: "digest", actor: "FHQ Assist", title: "Digest generated · revision 2", body: "Two asks found. Projector issue classified high priority because 28 learners are affected within one bell period.", at: "8:43 AM", internal: true },
   { id: "t4", kind: "sla", actor: "Time to Doom", title: "Breach risk increased to 92%", body: "Class begins in 38 minutes; current travel estimate to Standing Buffalo is 16 minutes.", at: "9:57 AM", internal: true },
 ];
 
-export const siteMetrics = sites.map((site, index) => ({
+export const timeline: TimelineEvent[] = [];
+
+export const siteMetrics = sites.map((site) => ({
   ...site,
-  open: [7, 5, 8, 4, 3, 6][index],
-  atRisk: [2, 1, 3, 0, 0, 2][index],
-  median: [42, 58, 71, 36, 49, 63][index],
-  trend: [18, -8, 24, -12, 2, 15][index],
+  open: 0,
+  atRisk: 0,
+  median: 0,
+  trend: 0,
 }));
