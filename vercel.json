@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/graph-subscription",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}
