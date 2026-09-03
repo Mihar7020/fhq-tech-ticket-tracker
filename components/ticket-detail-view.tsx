@@ -48,8 +48,9 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
     const internal = noteMode === "Internal note";
     const response = await fetch(`/api/tickets/${ticket.id}/comments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: message, internal }) });
     setSaving(false); if (!response.ok) { toast("Could not save the comment"); return; }
+    const result = await response.json() as { emailStatus?: "not_attempted" | "sent" | "failed" };
     setTimeline((current) => [...current, { id: `local-${Date.now()}`, kind: internal ? "note" : "email", actor: "You", title: internal ? "Internal note" : "Public comment", body: message, at: "Just now", internal }]);
-    toast(internal ? "Internal note saved" : "Public comment added"); setMessage("");
+    toast(internal ? "Internal note saved" : result.emailStatus === "failed" ? "Comment saved, but email reply failed" : result.emailStatus === "sent" ? "Comment saved and emailed" : "Public comment added"); setMessage("");
   }
 
   async function mergeTicket() {
