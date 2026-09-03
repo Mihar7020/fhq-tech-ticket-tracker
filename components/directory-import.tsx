@@ -7,11 +7,10 @@ import Papa from "papaparse";
 import ExcelJS from "exceljs";
 import { motion } from "framer-motion";
 import { ColumnMapping, ImportRow, StaffField, suggestMapping, validateRows } from "@/lib/csv-import";
-import { people } from "@/lib/demo-data";
 import { useApp } from "@/components/app-providers";
 
 const fieldOptions: { value: StaffField | "metadata" | "ignore"; label: string }[] = [
-  { value: "name", label: "Full name" }, { value: "email", label: "Email" }, { value: "site", label: "School / site" }, { value: "role", label: "Role / title" }, { value: "department", label: "Department" }, { value: "room", label: "Room" }, { value: "phone", label: "Phone" }, { value: "active", label: "Active status" }, { value: "metadata", label: "Keep as metadata" }, { value: "ignore", label: "Ignore column" },
+  { value: "name", label: "Full name" }, { value: "email", label: "Email" }, { value: "site", label: "School / site" }, { value: "role", label: "Role / title" }, { value: "department", label: "Department" }, { value: "phone", label: "Phone" }, { value: "active", label: "Active status" }, { value: "metadata", label: "Keep as metadata" }, { value: "ignore", label: "Ignore column" },
 ];
 
 export function DirectoryImport() {
@@ -25,7 +24,7 @@ export function DirectoryImport() {
   const { toast } = useApp();
   const router = useRouter();
   const headers = rows[0] ? Object.keys(rows[0]) : [];
-  const validated = useMemo(() => validateRows(rows, mapping, new Set(people.map((person) => person.email.toLowerCase()))), [rows, mapping]);
+  const validated = useMemo(() => validateRows(rows, mapping, new Set()), [rows, mapping]);
   const counts = { add: validated.filter((row) => row.action === "add" && !row.errors.length).length, update: validated.filter((row) => row.action === "update" && !row.errors.length).length, errors: validated.filter((row) => row.errors.length).length };
 
   async function readFile(file?: File) {

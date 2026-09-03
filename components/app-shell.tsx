@@ -8,25 +8,27 @@ import { BarChart3, BookOpen, Command, Gauge, Inbox, Map, Plus, Settings, Shield
 import clsx from "clsx";
 import { CommandPalette } from "@/components/command-palette";
 
-const primary = [
+const primaryBase = [
   { label: "Dashboard", href: "/dashboard", icon: Gauge },
-  { label: "Tickets", href: "/tickets", icon: Inbox, count: 14 },
+  { label: "Tickets", href: "/tickets", icon: Inbox },
   { label: "Schools", href: "/board", icon: Map },
-  { label: "Incidents", href: "/incidents", icon: ShieldAlert, count: 2 },
+  { label: "Incidents", href: "/incidents", icon: ShieldAlert },
 ];
 
-const intelligence = [
-  { label: "Directory", href: "/directory", icon: Users, count: 3 },
+const intelligenceBase = [
+  { label: "Directory", href: "/directory", icon: Users },
   { label: "Knowledge", href: "/knowledge", icon: BookOpen },
   { label: "Reports", href: "/reports", icon: BarChart3 },
 ];
 
-type NavItem = (typeof primary)[number];
+type NavItem = { label: string; href: string; icon: typeof Gauge; count?: number };
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, session, counts }: { children: React.ReactNode; session: { name: string; email: string; role: string }; counts: { tickets: number; incidents: number; directory: number } }) {
   const pathname = usePathname();
+  const primary: NavItem[] = primaryBase.map((item) => ({ ...item, count: item.href === "/tickets" ? counts.tickets : item.href === "/incidents" ? counts.incidents : undefined }));
+  const intelligence: NavItem[] = intelligenceBase.map((item) => ({ ...item, count: item.href === "/directory" ? counts.directory : undefined }));
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const openPalette = useCallback(() => setPaletteOpen(true), []);
+  const openPalette = useCallback(() => setPaletteOpen(true), [setPaletteOpen]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -94,10 +96,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="mt-3 border-t divider pt-3">
           <div className="mb-2 flex items-center gap-3 rounded-lg px-2 py-2">
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-[var(--gold)] text-xs font-black text-white">MK</span>
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-[var(--gold)] text-xs font-black text-white">{session.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span>
             <span className="min-w-0 flex-1">
-              <strong className="block truncate text-xs">Mihar Kathiriya</strong>
-              <span className="muted text-[10px]">Tech - on site</span>
+              <strong className="block truncate text-xs">{session.name}</strong>
+              <span className="muted text-[10px]">{session.role === "ADMIN" ? "Administrator" : "Technician"}</span>
             </span>
             <span className="h-2 w-2 rounded-full bg-[var(--green)]" />
           </div>

@@ -7,29 +7,56 @@ import { AnimatePresence, motion } from "framer-motion";
 import { SiteBadge } from "@/components/site-badge";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
 import { useApp } from "@/components/app-providers";
-import { sites, techs, timeline } from "@/lib/demo-data";
-import type { Ticket, TicketStatus } from "@/lib/types";
+import type { Site, Tech, Ticket, TicketStatus, TimelineEvent } from "@/lib/types";
 
 const statuses: TicketStatus[] = ["New", "Triage", "In progress", "Waiting on staff", "Waiting on IT", "Resolved"];
 
-export function TicketDetailView({ initialTicket }: { initialTicket: Ticket }) {
+export function TicketDetailView({ initialTicket, initialTimeline, sites, techs, mergeCandidates, currentUserEmail }: { initialTicket: Ticket; initialTimeline: TimelineEvent[]; sites: Site[]; techs: Tech[]; mergeCandidates: Ticket[]; currentUserEmail: string }) {
   const [ticket, setTicket] = useState(initialTicket);
+  const [timeline, setTimeline] = useState(initialTimeline);
   const [noteMode, setNoteMode] = useState<"Public comment" | "Internal note">("Public comment");
   const [message, setMessage] = useState("");
   const [mergeOpen, setMergeOpen] = useState(false);
   const [resolved, setResolved] = useState(ticket.status === "Resolved");
+  const [mergeNumber, setMergeNumber] = useState("");
+  const [saving, setSaving] = useState(false);
   const { toast } = useApp();
-  const site = useMemo(() => sites.find((item) => item.id === ticket.siteId), [ticket.siteId]);
+  const site = useMemo(() => sites.find((item) => item.id === ticket.siteId), [sites, ticket.siteId]);
+  const currentTechId = currentUserEmail.toLowerCase().startsWith("joseph") ? "joe" : currentUserEmail.toLowerCase().startsWith("rodello") ? "rodello" : currentUserEmail.toLowerCase().startsWith("mihar") ? "mihar" : techs[0]?.id;
 
-  function updateStatus(status: TicketStatus) {
+  async function updateStatus(status: TicketStatus) {
+    const previous = ticket.status;
     setTicket((current) => ({ ...current, status }));
     setResolved(status === "Resolved");
+    const response = await fetch(`/api/tickets/${ticket.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+    if (!response.ok) { setTicket((current) => ({ ...current, status: previous })); setResolved(previous === "Resolved"); toast("Could not change status"); return; }
     toast(`Status changed to ${status}`);
   }
 
-  function assign(name: string) {
-    setTicket((current) => ({ ...current, assignee: name === "Unassigned" ? undefined : name, status: current.status === "New" && name !== "Unassigned" ? "In progress" : current.status }));
-    toast(name === "Mihar Kathiriya" ? "Ticket assigned to you" : `Assigned to ${name}`);
+  async function assign(id: string) {
+    const tech = techs.find((item) => item.id === id);
+    const previous = ticket;
+    const nextStatus = ticket.status === "New" && id ? "In progress" : ticket.status;
+    setTicket((current) => ({ ...current, assignee: tech?.name, status: nextStatus }));
+    const response = await fetch(`/api/tickets/${ticket.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ assigneeId: id || null, ...(nextStatus !== ticket.status ? { status: nextStatus } : {}) }) });
+    if (!response.ok) { setTicket(previous); toast("Could not change assignment"); return; }
+    toast(id && id === currentTechId ? "Ticket assigned to you" : tech ? `Assigned to ${tech.name}` : "Ticket unassigned");
+  }
+
+  async function addComment() {
+    if (!message.trim() || saving) return; setSaving(true);
+    const internal = noteMode === "Internal note";
+    const response = await fetch(`/api/tickets/${ticket.id}/comments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: message, internal }) });
+    setSaving(false); if (!response.ok) { toast("Could not save the comment"); return; }
+    setTimeline((current) => [...current, { id: `local-${Date.now()}`, kind: internal ? "note" : "email", actor: "You", title: internal ? "Internal note" : "Public comment", body: message, at: "Just now", internal }]);
+    toast(internal ? "Internal note saved" : "Public comment added"); setMessage("");
+  }
+
+  async function mergeTicket() {
+    if (!mergeNumber.trim()) return;
+    const response = await fetch(`/api/tickets/${ticket.id}/merge`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sourcePublicId: mergeNumber.trim() }) });
+    if (!response.ok) { const result = await response.json() as { error?: string }; toast(result.error === "ticket_not_found" ? "That ticket number was not found" : "Could not merge that ticket"); return; }
+    toast(`${mergeNumber.toUpperCase()} merged into ${ticket.number}`); setMergeNumber(""); setMergeOpen(false);
   }
 
   return (
@@ -38,7 +65,7 @@ export function TicketDetailView({ initialTicket }: { initialTicket: Ticket }) {
         <Link href="/tickets" className="flex items-center gap-2 text-xs font-semibold muted hover:text-[var(--text)]"><ArrowLeft size={15} /> Tickets</Link>
         <div className="flex items-center gap-2">
           <button className="btn text-xs" onClick={() => setMergeOpen((value) => !value)}><Merge size={14} /> Merge</button>
-          {!ticket.assignee ? <button className="btn btn-primary text-xs" onClick={() => assign("Mihar Kathiriya")}><UserCheck size={15} /> Take ticket</button> : null}
+          {!ticket.assignee ? <button className="btn btn-primary text-xs" onClick={() => assign(currentTechId || "")}><UserCheck size={15} /> Take ticket</button> : null}
         </div>
       </div>
 
@@ -62,9 +89,9 @@ export function TicketDetailView({ initialTicket }: { initialTicket: Ticket }) {
         <div className="flex flex-wrap gap-2 lg:justify-end">
           <label className="relative">
             <span className="sr-only">Assignee</span>
-            <select value={ticket.assignee ?? "Unassigned"} onChange={(event) => assign(event.target.value)} className="btn h-full appearance-none pr-9">
-              <option>Unassigned</option>
-              {techs.map((tech) => <option key={tech.id}>{tech.name}</option>)}
+            <select value={techs.find((tech) => tech.name === ticket.assignee)?.id ?? ""} onChange={(event) => assign(event.target.value)} className="btn h-full appearance-none pr-9">
+              <option value="">Unassigned</option>
+              {techs.map((tech) => <option key={tech.id} value={tech.id}>{tech.name}</option>)}
             </select>
             <ChevronDown className="pointer-events-none absolute right-3 top-3" size={14} />
           </label>
@@ -96,9 +123,10 @@ export function TicketDetailView({ initialTicket }: { initialTicket: Ticket }) {
           <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
             <label>
               <span className="muted mb-2 block text-xs">Merge another ticket into {ticket.number}</span>
-              <input className="input" placeholder="Enter ticket number, example FHQ-1041" />
+              <input list="merge-candidates" value={mergeNumber} onChange={(event) => setMergeNumber(event.target.value)} className="input" placeholder="Enter ticket number, example FHQ-0002" />
+              <datalist id="merge-candidates">{mergeCandidates.map((candidate) => <option key={candidate.id} value={candidate.number}>{candidate.subject}</option>)}</datalist>
             </label>
-            <button className="btn" onClick={() => toast("Merge preview opened - no tickets changed")}><Merge size={14} /> Preview merge</button>
+            <button className="btn" onClick={mergeTicket}><Merge size={14} /> Merge ticket</button>
           </div>
         </section>
       ) : null}
@@ -117,7 +145,6 @@ export function TicketDetailView({ initialTicket }: { initialTicket: Ticket }) {
             <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <InfoTile label="Category" value={ticket.category} />
               <InfoTile label="Service" value={ticket.service} />
-              <InfoTile label="Room" value={ticket.room ?? "Not set"} />
               <InfoTile label="Affected" value={`${ticket.affected}`} />
             </div>
             <div className="mt-5 rounded-lg border divider bg-[var(--ink-3)]/45 p-4">
@@ -133,13 +160,13 @@ export function TicketDetailView({ initialTicket }: { initialTicket: Ticket }) {
                   <button key={mode} onClick={() => setNoteMode(mode)} className={`rounded-md px-3 py-1.5 text-xs font-bold ${noteMode === mode ? "accent-fill" : "muted"}`}>{mode}</button>
                 ))}
               </div>
-              <span className="muted text-xs">{noteMode === "Public comment" ? "Visible to requester later" : "IT team only"}</span>
+              <span className="muted text-xs">{noteMode === "Public comment" ? "Visible to requester and emailed for email-created tickets" : "IT team only"}</span>
             </div>
             <div className="p-5">
               <label htmlFor="message" className="sr-only">{noteMode}</label>
               <textarea id="message" value={message} onChange={(event) => setMessage(event.target.value)} className="input min-h-36 leading-6" placeholder={noteMode === "Public comment" ? "Write an update for the requester..." : "Add an internal troubleshooting note..."} />
               <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-                <button disabled={!message.trim()} onClick={() => { toast(noteMode === "Public comment" ? "Public comment added" : "Internal note added"); setMessage(""); }} className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-40">
+                <button disabled={!message.trim() || saving} onClick={addComment} className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-40">
                   {noteMode === "Public comment" ? <Send size={15} /> : <Save size={15} />}
                   {noteMode === "Public comment" ? "Add comment" : "Save note"}
                 </button>
@@ -200,8 +227,6 @@ export function TicketDetailView({ initialTicket }: { initialTicket: Ticket }) {
             </div>
             <dl className="mt-5 space-y-3 text-xs">
               <InfoLine label="Role" value={ticket.requesterRole} />
-              <InfoLine label="Room" value={ticket.room ?? "Not set"} />
-              <InfoLine label="Open tickets" value="2" />
             </dl>
           </section>
 

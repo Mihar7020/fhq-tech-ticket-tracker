@@ -26,7 +26,8 @@ export function resolveRoute(input: { senderEmail: string; displayName?: string;
   const domainSite = input.sites.find((site) => site.domain?.toLowerCase() === domain);
   if (domainSite) signals.push({ type: "domain", siteId: domainSite.id, confidence: .86, detail: `Sender domain ${domain} maps to ${domainSite.name}` });
   const body = normalizeText(input.body ?? "");
-  const bodySite = input.sites.find((site) => body.includes(normalizeText(site.name)) || body.includes(normalizeText(site.code)));
+  const paddedBody = ` ${body} `;
+  const bodySite = input.sites.find((site) => paddedBody.includes(` ${normalizeText(site.name)} `) || paddedBody.includes(` ${normalizeText(site.code)} `));
   if (bodySite) signals.push({ type: "body", siteId: bodySite.id, confidence: .78, detail: `Email body mentions ${bodySite.name}` });
   if (!exactPeople.length && input.displayName) {
     const candidates = input.people.map((person) => ({ person, score: similarity(input.displayName!, person.name) })).sort((a, b) => b.score - a.score);

@@ -9,8 +9,7 @@ import { DoomMeter } from "@/components/doom-meter";
 import { PriorityBadge } from "@/components/status-badge";
 import { SiteBadge } from "@/components/site-badge";
 import { useApp } from "@/components/app-providers";
-import { sites, tickets as initialTickets } from "@/lib/demo-data";
-import type { Ticket } from "@/lib/types";
+import type { Site, Ticket } from "@/lib/types";
 
 type GroupMode = "site" | "status" | "priority" | "assignee" | "category" | "risk";
 
@@ -21,7 +20,7 @@ const getGroup = (ticket: Ticket, mode: GroupMode) => {
   return ticket[mode];
 };
 
-export function BoardView() {
+export function BoardView({ sites, initialTickets }: { sites: Site[]; initialTickets: Ticket[] }) {
   const [mode, setMode] = useState<GroupMode>("site");
   const [boardTickets, setBoardTickets] = useState(initialTickets.filter((ticket) => ticket.status !== "Resolved"));
   const [dragId, setDragId] = useState<string>();
@@ -35,7 +34,7 @@ export function BoardView() {
 
     const keys = Array.from(new Set(boardTickets.map((ticket) => String(getGroup(ticket, mode)))));
     return keys.map((key, index) => ({ key, label: key, color: index === 0 ? "#256b73" : "#8d867a" }));
-  }, [mode, boardTickets]);
+  }, [mode, boardTickets, sites]);
 
   function moveTo(group: string) {
     if (!dragId) return;

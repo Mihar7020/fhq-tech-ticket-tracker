@@ -1,30 +1,40 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, ClipboardPlus, Save, UserCheck } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { useApp } from "@/components/app-providers";
-import { sites, techs, tickets } from "@/lib/demo-data";
-import type { Priority, TicketStatus } from "@/lib/types";
+import type { Priority, Site, Tech, TicketStatus } from "@/lib/types";
 
 const priorities: Priority[] = ["Low", "Normal", "High", "Critical"];
 const statuses: TicketStatus[] = ["New", "Triage", "In progress", "Waiting on staff", "Waiting on IT", "Resolved"];
 
-export function NewTicketView() {
+export function NewTicketView({ sites, techs }: { sites: Site[]; techs: Tech[] }) {
   const { toast } = useApp();
-  const nextNumber = useMemo(() => {
-    const last = Math.max(...tickets.map((ticket) => Number(ticket.id)));
-    return `FHQ-${last + 1}`;
-  }, []);
+  const router = useRouter();
   const [subject, setSubject] = useState("");
   const [requester, setRequester] = useState("");
-  const [site, setSite] = useState("sbec");
+  const [site, setSite] = useState(sites[0]?.id ?? "");
   const [priority, setPriority] = useState<Priority>("Normal");
   const [status, setStatus] = useState<TicketStatus>("New");
-  const [assignee, setAssignee] = useState("Unassigned");
+  const [requesterEmail, setRequesterEmail] = useState("");
+  const [assignee, setAssignee] = useState("");
   const [details, setDetails] = useState("");
+  const [saving, setSaving] = useState(false);
   const canSave = subject.trim().length > 3 && requester.trim().length > 1 && details.trim().length > 5;
+
+  async function saveTicket() {
+    if (!canSave || saving) return;
+    setSaving(true);
+    const response = await fetch("/api/tickets", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subject, requester, requesterEmail, siteId: site, priority, status, assigneeId: assignee, details }) });
+    const result = await response.json() as { id?: string; publicId?: string; error?: string };
+    if (!response.ok || !result.id) { toast("Could not save the request. Check the fields and try again."); setSaving(false); return; }
+    toast(`${result.publicId} created`);
+    router.push(`/tickets/${result.id}`);
+    router.refresh();
+  }
 
   return (
     <div className="page-wrap max-w-5xl">
@@ -42,7 +52,7 @@ export function NewTicketView() {
         <section className="card overflow-hidden">
           <div className="border-b divider px-5 py-4">
             <h2 className="display text-xl">Request details</h2>
-            <p className="muted mt-1 text-xs">Ticket number preview: <span className="font-mono text-[var(--text)]">{nextNumber}</span></p>
+            <p className="muted mt-1 text-xs">The next ticket number will be assigned automatically when you save.</p>
           </div>
           <div className="grid gap-4 p-5">
             <label>
@@ -54,6 +64,12 @@ export function NewTicketView() {
                 <span className="label mb-2 block">Requester</span>
                 <input className="input" value={requester} onChange={(event) => setRequester(event.target.value)} placeholder="Staff name" />
               </label>
+              <label>
+                <span className="label mb-2 block">Requester email <span className="muted normal-case">(optional)</span></span>
+                <input className="input" type="email" value={requesterEmail} onChange={(event) => setRequesterEmail(event.target.value)} placeholder="name@fhqtc.net" />
+              </label>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
               <label>
                 <span className="label mb-2 block">School</span>
                 <select className="input" value={site} onChange={(event) => setSite(event.target.value)}>
@@ -77,23 +93,23 @@ export function NewTicketView() {
               <label>
                 <span className="label mb-2 block">Technician</span>
                 <select className="input" value={assignee} onChange={(event) => setAssignee(event.target.value)}>
-                  <option>Unassigned</option>
-                  {techs.map((item) => <option key={item.id}>{item.name}</option>)}
+                  <option value="">Unassigned</option>
+                  {techs.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                 </select>
               </label>
             </div>
             <label>
               <span className="label mb-2 block">What happened?</span>
-              <textarea className="input min-h-44 leading-6" value={details} onChange={(event) => setDetails(event.target.value)} placeholder="Write the request, symptoms, room number, device, and anything already tried." />
+              <textarea className="input min-h-44 leading-6" value={details} onChange={(event) => setDetails(event.target.value)} placeholder="Write the request, symptoms, device, and anything already tried." />
             </label>
             <div className="flex flex-wrap justify-end gap-2 border-t divider pt-4">
               <Link href="/tickets" className="btn">Cancel</Link>
               <button
                 disabled={!canSave}
                 className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-40"
-                onClick={() => toast(`${nextNumber} drafted - database save comes next`)}
+                onClick={saveTicket}
               >
-                <Save size={15} /> Save request
+                <Save size={15} /> {saving ? "Saving..." : "Save request"}
               </button>
             </div>
           </div>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronDown, Plus, Search } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { TicketRow } from "@/components/ticket-row";
-import { sites, techs, tickets } from "@/lib/demo-data";
+import type { Site, Tech, Ticket } from "@/lib/types";
 
 function FilterSelect({ value, onChange, label, children }: { value: string; onChange: (value: string) => void; label: string; children: React.ReactNode }) {
   return (
@@ -19,7 +19,7 @@ function FilterSelect({ value, onChange, label, children }: { value: string; onC
   );
 }
 
-export function TicketListView() {
+export function TicketListView({ tickets, sites, techs }: { tickets: Ticket[]; sites: Site[]; techs: Tech[] }) {
   const [query, setQuery] = useState("");
   const [site, setSite] = useState("all");
   const [status, setStatus] = useState("open");
@@ -32,7 +32,7 @@ export function TicketListView() {
     const matchesStatus = status === "all" || (status === "open" ? ticket.status !== "Resolved" : ticket.status === status);
     const matchesTech = tech === "all" || ticket.assignee === tech || (tech === "unassigned" && !ticket.assignee);
     return matchesQuery && matchesSite && matchesStatus && matchesTech;
-  }), [query, site, status, tech]);
+  }), [tickets, query, site, status, tech]);
 
   return (
     <div className="page-wrap">

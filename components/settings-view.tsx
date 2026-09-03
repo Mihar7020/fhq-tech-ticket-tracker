@@ -9,7 +9,7 @@ export function SettingsView() {
   const { toast } = useApp();
   const [digest, setDigest] = useState(true);
   const rows = [
-    { icon: Mail, title: "Microsoft Graph mailbox", body: "Webhook ingestion - FHQTCTech mailbox later", status: "Configuration required" },
+    { icon: Mail, title: "Microsoft Graph mailbox", body: "New mail sent to FHQTCTech@fhqtc.net is ingested through the restricted helpdesk mailbox.", status: "Connected" },
     { icon: Brain, title: "Ticket summaries", body: "Human review is always required", status: "Prototype mode" },
     { icon: Radio, title: "Live presence", body: "Collision guard and workload signals", status: "Demo channel" },
   ];

@@ -5,21 +5,19 @@ import Link from "next/link";
 import { ArrowUpRight, ClipboardList, Inbox, Map, Plus, UserCheck } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { TicketRow } from "@/components/ticket-row";
-import { siteMetrics, techs, tickets } from "@/lib/demo-data";
+import type { Site, Tech, Ticket } from "@/lib/types";
 
-const openTickets = tickets.filter((ticket) => ticket.status !== "Resolved");
-const unassignedTickets = openTickets.filter((ticket) => !ticket.assignee);
-const highPriorityTickets = openTickets.filter((ticket) => ticket.priority === "Critical" || ticket.priority === "High");
+type SiteMetric = Site & { open: number; atRisk: number; median: number; trend: number };
 
-const summary = [
-  { label: "Open tickets", value: openTickets.length, detail: "Across 6 schools", icon: Inbox },
-  { label: "Unassigned", value: unassignedTickets.length, detail: "Ready to pick up", icon: UserCheck },
-  { label: "High priority", value: highPriorityTickets.length, detail: "Critical or high", icon: ClipboardList },
-  { label: "Schools", value: siteMetrics.length, detail: "FHQTC support sites", icon: Map },
-];
-
-export function DashboardView() {
-  const nextTickets = useMemo(() => openTickets.slice(0, 6), []);
+export function DashboardView({ tickets, techs, siteMetrics }: { tickets: Ticket[]; techs: Tech[]; siteMetrics: SiteMetric[] }) {
+  const openTickets = useMemo(() => tickets.filter((ticket) => ticket.status !== "Resolved"), [tickets]);
+  const nextTickets = useMemo(() => openTickets.slice(0, 6), [openTickets]);
+  const summary = [
+    { label: "Open tickets", value: openTickets.length, detail: "Across 6 schools", icon: Inbox },
+    { label: "Unassigned", value: openTickets.filter((ticket) => !ticket.assignee).length, detail: "Ready to pick up", icon: UserCheck },
+    { label: "High priority", value: openTickets.filter((ticket) => ticket.priority === "Critical" || ticket.priority === "High").length, detail: "Critical or high", icon: ClipboardList },
+    { label: "Schools", value: siteMetrics.length, detail: "FHQTC support sites", icon: Map },
+  ];
 
   return (
     <div className="page-wrap">
