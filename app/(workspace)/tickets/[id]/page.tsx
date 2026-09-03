@@ -16,5 +16,5 @@ export default async function TicketPage({ params }: Props) {
   const { id } = await params;
   const [result, sites, techs, allTickets, session] = await Promise.all([getTicket(id), getSites(), getTechs(), getTickets(), requireSession()]);
   if (!result) notFound();
-  return <TicketDetailView initialTicket={result.ticket} initialTimeline={result.timeline} sites={sites} techs={techs} mergeCandidates={allTickets.filter((ticket) => ticket.id !== result.ticket.id && ticket.status !== "Resolved")} currentUserEmail={session.email} />;
+  return <TicketDetailView initialTicket={result.ticket} initialTimeline={result.timeline} sites={sites} techs={techs} mergeCandidates={allTickets.filter((ticket) => ticket.id !== result.ticket.id && !["Resolved", "Voided"].includes(ticket.status))} currentUserEmail={session.email} />;
 }

@@ -1,4 +1,4 @@
-export type TicketStatus = "New" | "Triage" | "In progress" | "Waiting on staff" | "Waiting on IT" | "Resolved";
+export type TicketStatus = "New" | "Triage" | "In progress" | "Waiting on staff" | "Waiting on IT" | "Resolved" | "Voided";
 export type Priority = "Critical" | "High" | "Normal" | "Low";
 export type Site = {
   id: string;

@@ -29,7 +29,7 @@ export function TicketListView({ tickets, sites, techs }: { tickets: Ticket[]; s
     const searchable = `${ticket.number} ${ticket.subject} ${ticket.requester} ${ticket.category} ${ticket.service}`.toLowerCase();
     const matchesQuery = searchable.includes(query.toLowerCase());
     const matchesSite = site === "all" || ticket.siteId === site || (site === "unrouted" && !ticket.siteId);
-    const matchesStatus = status === "all" || (status === "open" ? ticket.status !== "Resolved" : ticket.status === status);
+    const matchesStatus = status === "all" || (status === "open" ? !["Resolved", "Voided"].includes(ticket.status) : ticket.status === status);
     const matchesTech = tech === "all" || ticket.assignee === tech || (tech === "unassigned" && !ticket.assignee);
     return matchesQuery && matchesSite && matchesStatus && matchesTech;
   }), [tickets, query, site, status, tech]);
@@ -65,6 +65,7 @@ export function TicketListView({ tickets, sites, techs }: { tickets: Ticket[]; s
               <option>Waiting on staff</option>
               <option>Waiting on IT</option>
               <option>Resolved</option>
+              <option>Voided</option>
             </FilterSelect>
             <FilterSelect label="Technician" value={tech} onChange={setTech}>
               <option value="all">All techs</option>
@@ -74,11 +75,12 @@ export function TicketListView({ tickets, sites, techs }: { tickets: Ticket[]; s
           </div>
         </div>
 
-        <div className="hidden min-h-10 items-center gap-3 border-b divider px-5 text-[10px] uppercase tracking-[.08em] muted sm:flex">
-          <span className="w-[calc(100%-430px)]">Request</span>
-          <span className="w-28">Status</span>
-          <span className="w-20">Priority</span>
-          <span className="w-28">Technician</span>
+        <div className="hidden min-h-10 grid-cols-[minmax(0,1fr)_132px_104px_132px_24px] items-center gap-4 border-b divider px-5 text-[10px] uppercase tracking-[.08em] muted sm:grid">
+          <span>Request</span>
+          <span>Status</span>
+          <span>Priority</span>
+          <span>Technician</span>
+          <span aria-hidden />
         </div>
 
         {filtered.length ? <div>{filtered.map((ticket) => <TicketRow key={ticket.id} ticket={ticket} />)}</div> : (

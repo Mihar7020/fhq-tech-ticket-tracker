@@ -2,14 +2,16 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, ChevronDown, Clock3, Merge, MessageSquareText, Pencil, Save, Send, UserCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Check, ChevronDown, Clock3, Merge, MessageSquareText, Pencil, Save, Send, Trash2, UserCheck, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { SiteBadge } from "@/components/site-badge";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
 import { useApp } from "@/components/app-providers";
-import type { Site, Tech, Ticket, TicketStatus, TimelineEvent } from "@/lib/types";
+import type { Priority, Site, Tech, Ticket, TicketStatus, TimelineEvent } from "@/lib/types";
 
-const statuses: TicketStatus[] = ["New", "Triage", "In progress", "Waiting on staff", "Waiting on IT", "Resolved"];
+const statuses: TicketStatus[] = ["New", "Triage", "In progress", "Waiting on staff", "Waiting on IT", "Resolved", "Voided"];
+const priorities: Priority[] = ["Critical", "High", "Normal", "Low"];
 
 export function TicketDetailView({ initialTicket, initialTimeline, sites, techs, mergeCandidates, currentUserEmail }: { initialTicket: Ticket; initialTimeline: TimelineEvent[]; sites: Site[]; techs: Tech[]; mergeCandidates: Ticket[]; currentUserEmail: string }) {
   const [ticket, setTicket] = useState(initialTicket);
@@ -20,17 +22,43 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
   const [resolved, setResolved] = useState(ticket.status === "Resolved");
   const [mergeNumber, setMergeNumber] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [voiding, setVoiding] = useState(false);
+  const [draft, setDraft] = useState(() => ({
+    subject: initialTicket.subject,
+    summary: initialTicket.digest,
+    category: initialTicket.category,
+    service: initialTicket.service,
+    affected: String(initialTicket.affected),
+    requester: initialTicket.requester,
+    requesterEmail: initialTicket.requesterEmail,
+    siteId: initialTicket.siteId ?? "",
+  }));
   const { toast } = useApp();
+  const router = useRouter();
   const site = useMemo(() => sites.find((item) => item.id === ticket.siteId), [sites, ticket.siteId]);
   const currentTechId = currentUserEmail.toLowerCase().startsWith("joseph") ? "joe" : currentUserEmail.toLowerCase().startsWith("rodello") ? "rodello" : currentUserEmail.toLowerCase().startsWith("mihar") ? "mihar" : techs[0]?.id;
+
+  async function patchTicket(body: Record<string, unknown>) {
+    return fetch(`/api/tickets/${ticket.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  }
 
   async function updateStatus(status: TicketStatus) {
     const previous = ticket.status;
     setTicket((current) => ({ ...current, status }));
     setResolved(status === "Resolved");
-    const response = await fetch(`/api/tickets/${ticket.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+    const response = await patchTicket({ status });
     if (!response.ok) { setTicket((current) => ({ ...current, status: previous })); setResolved(previous === "Resolved"); toast("Could not change status"); return; }
     toast(`Status changed to ${status}`);
+  }
+
+  async function updatePriority(priority: Priority) {
+    const previous = ticket.priority;
+    setTicket((current) => ({ ...current, priority }));
+    const response = await patchTicket({ priority });
+    if (!response.ok) { setTicket((current) => ({ ...current, priority: previous })); toast("Could not change priority"); return; }
+    toast(`Priority changed to ${priority}`);
   }
 
   async function assign(id: string) {
@@ -38,9 +66,41 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
     const previous = ticket;
     const nextStatus = ticket.status === "New" && id ? "In progress" : ticket.status;
     setTicket((current) => ({ ...current, assignee: tech?.name, status: nextStatus }));
-    const response = await fetch(`/api/tickets/${ticket.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ assigneeId: id || null, ...(nextStatus !== ticket.status ? { status: nextStatus } : {}) }) });
+    const response = await patchTicket({ assigneeId: id || null, ...(nextStatus !== ticket.status ? { status: nextStatus } : {}) });
     if (!response.ok) { setTicket(previous); toast("Could not change assignment"); return; }
     toast(id && id === currentTechId ? "Ticket assigned to you" : tech ? `Assigned to ${tech.name}` : "Ticket unassigned");
+  }
+
+  async function saveEdits() {
+    setEditSaving(true);
+    const affected = Number(draft.affected);
+    const response = await patchTicket({ ...draft, siteId: draft.siteId || null, affected: Number.isFinite(affected) ? affected : 1 });
+    setEditSaving(false);
+    if (!response.ok) { toast("Could not save ticket edits"); return; }
+    setTicket((current) => ({
+      ...current,
+      subject: draft.subject,
+      digest: draft.summary,
+      category: draft.category,
+      service: draft.service,
+      affected: Number.isFinite(affected) ? affected : current.affected,
+      requester: draft.requester,
+      requesterEmail: draft.requesterEmail,
+      siteId: draft.siteId || undefined,
+    }));
+    setEditing(false);
+    toast("Ticket updated");
+  }
+
+  async function voidTicket() {
+    if (!window.confirm(`Void ${ticket.number}? It will disappear from open work but remain in history.`)) return;
+    setVoiding(true);
+    const response = await fetch(`/api/tickets/${ticket.id}`, { method: "DELETE" });
+    setVoiding(false);
+    if (!response.ok) { toast("Could not void ticket"); return; }
+    toast(`${ticket.number} voided`);
+    router.push("/tickets");
+    router.refresh();
   }
 
   async function addComment() {
@@ -66,6 +126,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
         <Link href="/tickets" className="flex items-center gap-2 text-xs font-semibold muted hover:text-[var(--text)]"><ArrowLeft size={15} /> Tickets</Link>
         <div className="flex items-center gap-2">
           <button className="btn text-xs" onClick={() => setMergeOpen((value) => !value)}><Merge size={14} /> Merge</button>
+          <button className="btn text-xs danger" disabled={voiding} onClick={voidTicket}><Trash2 size={14} /> {voiding ? "Voiding..." : "Void"}</button>
           {!ticket.assignee ? <button className="btn btn-primary text-xs" onClick={() => assign(currentTechId || "")}><UserCheck size={15} /> Take ticket</button> : null}
         </div>
       </div>
@@ -100,6 +161,13 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
             <span className="sr-only">Status</span>
             <select value={ticket.status} onChange={(event) => updateStatus(event.target.value as TicketStatus)} className="btn h-full appearance-none pr-9">
               {statuses.map((status) => <option key={status}>{status}</option>)}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-3" size={14} />
+          </label>
+          <label className="relative">
+            <span className="sr-only">Priority</span>
+            <select value={ticket.priority} onChange={(event) => updatePriority(event.target.value as Priority)} className="btn h-full appearance-none pr-9">
+              {priorities.map((priority) => <option key={priority}>{priority}</option>)}
             </select>
             <ChevronDown className="pointer-events-none absolute right-3 top-3" size={14} />
           </label>
@@ -140,14 +208,44 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
                 <p className="label">Request</p>
                 <h2 className="display mt-1 text-xl">Summary</h2>
               </div>
-              <button className="btn text-xs"><Pencil size={14} /> Edit</button>
+              <button className="btn text-xs" onClick={() => setEditing((value) => !value)}>{editing ? <X size={14} /> : <Pencil size={14} />}{editing ? "Cancel" : "Edit"}</button>
             </div>
-            <p className="text-base leading-7">{ticket.digest}</p>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <InfoTile label="Category" value={ticket.category} />
-              <InfoTile label="Service" value={ticket.service} />
-              <InfoTile label="Affected" value={`${ticket.affected}`} />
-            </div>
+            {editing ? (
+              <div className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <EditField label="Subject" value={draft.subject} onChange={(value) => setDraft((current) => ({ ...current, subject: value }))} />
+                  <EditField label="Requester" value={draft.requester} onChange={(value) => setDraft((current) => ({ ...current, requester: value }))} />
+                  <EditField label="Requester email" type="email" value={draft.requesterEmail} onChange={(value) => setDraft((current) => ({ ...current, requesterEmail: value }))} />
+                  <label>
+                    <span className="label mb-2 block">School</span>
+                    <select className="input" value={draft.siteId} onChange={(event) => setDraft((current) => ({ ...current, siteId: event.target.value }))}>
+                      <option value="">Unrouted</option>
+                      {sites.map((item) => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}
+                    </select>
+                  </label>
+                  <EditField label="Category" value={draft.category} onChange={(value) => setDraft((current) => ({ ...current, category: value }))} />
+                  <EditField label="Service" value={draft.service} onChange={(value) => setDraft((current) => ({ ...current, service: value }))} />
+                  <EditField label="Affected" type="number" value={draft.affected} onChange={(value) => setDraft((current) => ({ ...current, affected: value }))} />
+                </div>
+                <label>
+                  <span className="label mb-2 block">Summary</span>
+                  <textarea className="input min-h-28 leading-6" value={draft.summary} onChange={(event) => setDraft((current) => ({ ...current, summary: event.target.value }))} />
+                </label>
+                <div className="flex justify-end gap-2">
+                  <button className="btn" onClick={() => setEditing(false)}>Cancel</button>
+                  <button className="btn btn-primary" disabled={editSaving || !draft.subject.trim() || !draft.summary.trim()} onClick={saveEdits}><Save size={14} /> {editSaving ? "Saving..." : "Save edits"}</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="text-base leading-7">{ticket.digest}</p>
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <InfoTile label="Category" value={ticket.category} />
+                  <InfoTile label="Service" value={ticket.service} />
+                  <InfoTile label="Affected" value={`${ticket.affected}`} />
+                </div>
+              </>
+            )}
             <div className="mt-5 rounded-lg border divider bg-[var(--ink-3)]/45 p-4">
               <p className="label mb-2">Original request</p>
               <p className="whitespace-pre-wrap text-sm leading-7">{ticket.originalEmail}</p>
@@ -247,6 +345,15 @@ function InfoTile({ label, value }: { label: string; value: string }) {
       <p className="label mb-2">{label}</p>
       <p className="truncate text-sm font-semibold">{value}</p>
     </div>
+  );
+}
+
+function EditField({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: "text" | "email" | "number" }) {
+  return (
+    <label>
+      <span className="label mb-2 block">{label}</span>
+      <input className="input" type={type} min={type === "number" ? 1 : undefined} value={value} onChange={(event) => onChange(event.target.value)} />
+    </label>
   );
 }
 

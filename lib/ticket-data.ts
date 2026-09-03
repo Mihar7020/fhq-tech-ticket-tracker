@@ -8,11 +8,11 @@ export const hasDatabase = () => Boolean(process.env.DATABASE_URL?.trim());
 const statusFromDb: Record<string, TicketStatus> = {
   NEW: "New", TRIAGE: "Triage", IN_PROGRESS: "In progress",
   WAITING_ON_STAFF: "Waiting on staff", WAITING_ON_IT: "Waiting on IT",
-  RESOLVED: "Resolved", CLOSED: "Resolved", MERGED: "Resolved",
+  RESOLVED: "Resolved", CLOSED: "Voided", MERGED: "Resolved",
 };
 
 const priorityFromDb = { CRITICAL: "Critical", HIGH: "High", NORMAL: "Normal", LOW: "Low" } as const;
-export const statusToDb = { "New": "NEW", Triage: "TRIAGE", "In progress": "IN_PROGRESS", "Waiting on staff": "WAITING_ON_STAFF", "Waiting on IT": "WAITING_ON_IT", Resolved: "RESOLVED" } as const;
+export const statusToDb = { "New": "NEW", Triage: "TRIAGE", "In progress": "IN_PROGRESS", "Waiting on staff": "WAITING_ON_STAFF", "Waiting on IT": "WAITING_ON_IT", Resolved: "RESOLVED", Voided: "CLOSED" } as const;
 export const priorityToDb = { Critical: "CRITICAL", High: "HIGH", Normal: "NORMAL", Low: "LOW" } as const;
 
 const ticketInclude = {
