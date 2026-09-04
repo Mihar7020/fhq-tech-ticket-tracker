@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Printer, RefreshCw } from "lucide-react";
@@ -15,9 +15,18 @@ function Metric({ label, value, note }: { label: string; value: string | number;
   return <div className="card p-4"><p className="label">{label}</p><strong className="mt-3 block text-3xl">{value}</strong><p className="muted mt-1 text-xs">{note}</p></div>;
 }
 
+function TicketRows({ tickets, printable = false }: { tickets: ReportData["tickets"]; printable?: boolean }) {
+  return tickets.map((ticket) => <tr key={ticket.id} className="ticket-print-item border-b divider last:border-0"><td className="p-3 font-mono">{printable ? ticket.number : <Link className="hover:underline" href={`/tickets/${ticket.id}`}>{ticket.number}</Link>}</td><td className="p-3 whitespace-nowrap">{dateTime(ticket.createdAt)}</td><td className="max-w-[280px] p-3"><strong className="block">{ticket.subject}</strong><span className="muted">{ticket.requester}</span></td><td className="p-3">{ticket.school}</td><td className="p-3">{ticket.technician}</td><td className="p-3">{ticket.status}</td><td className="p-3">{ticket.priority}</td><td className="p-3 whitespace-nowrap">{dateTime(ticket.updatedAt)}</td></tr>);
+}
+
 export function ReportsView({ report }: { report: ReportData }) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
+  const [query, setQuery] = useState("");
+  const [school, setSchool] = useState("all");
+  const [status, setStatus] = useState("all");
+  const [technician, setTechnician] = useState("all");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     const timer = window.setInterval(() => startRefresh(() => router.refresh()), 60_000);
@@ -29,6 +38,20 @@ export function ReportsView({ report }: { report: ReportData }) {
   }
 
   const generated = dateTime(report.generatedAt);
+  const schools = useMemo(() => Array.from(new Set(report.tickets.map((ticket) => ticket.school))).sort(), [report.tickets]);
+  const statuses = useMemo(() => Array.from(new Set(report.tickets.map((ticket) => ticket.status))).sort(), [report.tickets]);
+  const technicians = useMemo(() => Array.from(new Set(report.tickets.map((ticket) => ticket.technician))).sort(), [report.tickets]);
+  const filteredTickets = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return report.tickets.filter((ticket) => {
+      const matchesQuery = !normalizedQuery || [ticket.number, ticket.subject, ticket.requester].some((value) => value.toLowerCase().includes(normalizedQuery));
+      return matchesQuery && (school === "all" || ticket.school === school) && (status === "all" || ticket.status === status) && (technician === "all" || ticket.technician === technician);
+    });
+  }, [query, report.tickets, school, status, technician]);
+  const pageCount = Math.max(1, Math.ceil(filteredTickets.length / 10));
+  const currentPage = Math.min(page, pageCount);
+  const visibleTickets = filteredTickets.slice((currentPage - 1) * 10, currentPage * 10);
+  const filterDescription = [school !== "all" ? `School: ${school}` : null, status !== "all" ? `Status: ${status}` : null, technician !== "all" ? `Technician: ${technician}` : null, query.trim() ? `Search: ${query.trim()}` : null].filter(Boolean).join(" • ") || "All tickets";
 
   return (
     <div className="page-wrap report-print-sheet max-w-none">
@@ -68,13 +91,16 @@ export function ReportsView({ report }: { report: ReportData }) {
       </div>
 
       <section className="card mt-5 overflow-hidden">
-        <div className="border-b divider p-4"><p className="label">Audit register</p><h2 className="mt-1 text-xl font-bold">Tickets</h2><p className="muted mt-1 text-xs">Up to the 250 most recent tickets, including resolved and voided records.</p></div>
-        <div className="overflow-x-auto"><table className="w-full min-w-[940px] text-left text-xs"><thead><tr className="border-b divider label"><th className="p-3">Ticket</th><th className="p-3">Created</th><th className="p-3">Request</th><th className="p-3">School</th><th className="p-3">Technician</th><th className="p-3">Status</th><th className="p-3">Priority</th><th className="p-3">Updated</th></tr></thead><tbody>{report.tickets.length ? report.tickets.map((ticket) => <tr key={ticket.id} className="ticket-print-item border-b divider last:border-0"><td className="p-3 font-mono"><Link className="no-print hover:underline" href={`/tickets/${ticket.id}`}>{ticket.number}</Link><span className="print-only">{ticket.number}</span></td><td className="p-3 whitespace-nowrap">{dateTime(ticket.createdAt)}</td><td className="max-w-[280px] p-3"><strong className="block">{ticket.subject}</strong><span className="muted">{ticket.requester}</span></td><td className="p-3">{ticket.school}</td><td className="p-3">{ticket.technician}</td><td className="p-3">{ticket.status}</td><td className="p-3">{ticket.priority}</td><td className="p-3 whitespace-nowrap">{dateTime(ticket.updatedAt)}</td></tr>) : <tr><td colSpan={8} className="muted p-8 text-center">No tickets to report yet.</td></tr>}</tbody></table></div>
-      </section>
-
-      <section className="card mt-5 overflow-hidden">
-        <div className="border-b divider p-4"><p className="label">Change history</p><h2 className="mt-1 text-xl font-bold">Recent audit activity</h2><p className="muted mt-1 text-xs">The 100 most recent recorded ticket actions.</p></div>
-        <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-left text-xs"><thead><tr className="border-b divider label"><th className="p-3">Time</th><th className="p-3">Ticket</th><th className="p-3">Action</th><th className="p-3">Actor</th></tr></thead><tbody>{report.audit.length ? report.audit.map((event) => <tr key={event.id} className="ticket-print-item border-b divider last:border-0"><td className="p-3 whitespace-nowrap">{dateTime(event.createdAt)}</td><td className="p-3 font-mono">{event.ticketNumber}</td><td className="p-3">{event.action}</td><td className="p-3">{event.actor}</td></tr>) : <tr><td colSpan={4} className="muted p-8 text-center">No audit activity has been recorded yet.</td></tr>}</tbody></table></div>
+        <div className="border-b divider p-4"><p className="label">Audit register</p><h2 className="mt-1 text-xl font-bold">Tickets</h2><p className="muted mt-1 text-xs">Ten tickets per page. Filters also control the printed ticket register.</p></div>
+        <div className="no-print grid gap-2 border-b divider p-4 md:grid-cols-[minmax(220px,1.5fr)_repeat(3,minmax(140px,1fr))]">
+          <label><span className="sr-only">Search audit tickets</span><input className="input" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Search ticket, request, requester…" /></label>
+          <label><span className="sr-only">Filter by school</span><select className="input" value={school} onChange={(event) => { setSchool(event.target.value); setPage(1); }}><option value="all">All schools</option>{schools.map((item) => <option key={item}>{item}</option>)}</select></label>
+          <label><span className="sr-only">Filter by status</span><select className="input" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="all">All statuses</option>{statuses.map((item) => <option key={item}>{item}</option>)}</select></label>
+          <label><span className="sr-only">Filter by technician</span><select className="input" value={technician} onChange={(event) => { setTechnician(event.target.value); setPage(1); }}><option value="all">All technicians</option>{technicians.map((item) => <option key={item}>{item}</option>)}</select></label>
+        </div>
+        <div className="hidden border-b divider p-3 text-xs print:block"><strong>Printed ticket filter:</strong> {filterDescription} • {filteredTickets.length} ticket{filteredTickets.length === 1 ? "" : "s"}</div>
+        <div className="overflow-x-auto"><table className="w-full min-w-[940px] text-left text-xs"><thead><tr className="border-b divider label"><th className="p-3">Ticket</th><th className="p-3">Created</th><th className="p-3">Request</th><th className="p-3">School</th><th className="p-3">Technician</th><th className="p-3">Status</th><th className="p-3">Priority</th><th className="p-3">Updated</th></tr></thead><tbody className="print:hidden">{visibleTickets.length ? <TicketRows tickets={visibleTickets} /> : <tr><td colSpan={8} className="muted p-8 text-center">No tickets match these filters.</td></tr>}</tbody><tbody className="hidden print:table-row-group">{filteredTickets.length ? <TicketRows tickets={filteredTickets} printable /> : <tr><td colSpan={8} className="p-8 text-center">No tickets match these filters.</td></tr>}</tbody></table></div>
+        <div className="no-print flex items-center justify-between gap-3 border-t divider p-4"><p className="muted text-xs">{filteredTickets.length} ticket{filteredTickets.length === 1 ? "" : "s"}</p><nav aria-label="Audit register pages" className="flex items-center gap-2"><button className="btn min-h-8 px-3 text-xs" disabled={currentPage === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</button><span className="min-w-20 text-center text-xs">Page {currentPage} of {pageCount}</span><button className="btn min-h-8 px-3 text-xs" disabled={currentPage === pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))}>Next</button></nav></div>
       </section>
 
       <footer className="mt-5 border-t divider pt-4 text-xs muted"><p>FHQ Tech Helpdesk audit snapshot • Generated {generated} • Data refreshes automatically every 60 seconds while this page is open.</p></footer>
