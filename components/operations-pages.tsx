@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, ChartNoAxesCombined, Map, ShieldAlert } from "lucide-react";
+import { BookOpen, Map, ShieldAlert } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 
 function LaterCard({ icon: Icon, title, body }: { icon: typeof ShieldAlert; title: string; body: string }) {
@@ -18,8 +18,4 @@ export function OperationsView() {
 
 export function KnowledgeView() {
   return <div className="page-wrap"><PageHeader eyebrow="Later integration" title="Knowledge base" description="Resolved-ticket articles will be added after the core helpdesk workflow is proven." /><LaterCard icon={BookOpen} title="No sample articles" body="This area intentionally starts empty. Future articles will come from your team’s real resolutions." /></div>;
-}
-
-export function ReportsView() {
-  return <div className="page-wrap"><PageHeader eyebrow="Later integration" title="Reports" description="Reports will be built from real ticket history once enough live data exists." /><LaterCard icon={ChartNoAxesCombined} title="No invented metrics" body="The dashboard already shows current live counts. Weekly trends and resolution reports will appear here later." /></div>;
 }

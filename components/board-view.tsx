@@ -6,8 +6,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, BookmarkPlus, GripVertical, LayoutDashboard, Printer, SlidersHorizontal } from "lucide-react";
 import { motion } from "framer-motion";
 import { PageHeader } from "@/components/page-header";
-import { DoomMeter } from "@/components/doom-meter";
-import { PriorityBadge } from "@/components/status-badge";
+import { PriorityBadge, StatusBadge } from "@/components/status-badge";
 import { SiteBadge } from "@/components/site-badge";
 import { useApp } from "@/components/app-providers";
 import { isActiveTicket } from "@/lib/ticket-status";
@@ -142,7 +141,7 @@ export function BoardView({ sites, initialTickets }: { sites: Site[]; initialTic
                           <Link href={`/tickets/${ticket.id}`} className="mt-1.5 block font-semibold leading-snug hover:text-[var(--gold-bright)]">{ticket.subject}</Link>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between gap-2"><SiteBadge siteId={ticket.siteId} compact /><DoomMeter minutes={ticket.doomMinutes} risk={ticket.doomRisk} compact /></div>
+                      <div className="flex items-center justify-between gap-2"><SiteBadge siteId={ticket.siteId} compact /><StatusBadge status={ticket.status} /></div>
                       <div className="mt-3 flex items-center justify-between border-t divider pt-2 text-[10px] muted"><span>{ticket.requester}</span><span>{ticket.assignee?.split(" ")[0] ?? "Unassigned"}</span></div>
                     </motion.article>
                   )) : (
