@@ -9,6 +9,7 @@ import { DoomMeter } from "@/components/doom-meter";
 import { PriorityBadge } from "@/components/status-badge";
 import { SiteBadge } from "@/components/site-badge";
 import { useApp } from "@/components/app-providers";
+import { isActiveTicket } from "@/lib/ticket-status";
 import type { Site, Ticket } from "@/lib/types";
 
 type GroupMode = "site" | "status" | "priority" | "assignee" | "category" | "risk";
@@ -22,7 +23,7 @@ const getGroup = (ticket: Ticket, mode: GroupMode) => {
 
 export function BoardView({ sites, initialTickets }: { sites: Site[]; initialTickets: Ticket[] }) {
   const [mode, setMode] = useState<GroupMode>("site");
-  const [boardTickets, setBoardTickets] = useState(initialTickets.filter((ticket) => ticket.status !== "Resolved"));
+  const [boardTickets, setBoardTickets] = useState(initialTickets.filter(isActiveTicket));
   const [dragId, setDragId] = useState<string>();
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useApp();

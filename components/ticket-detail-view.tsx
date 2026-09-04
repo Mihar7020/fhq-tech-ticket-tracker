@@ -148,28 +148,28 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
             <span>{ticket.createdAt}</span>
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 lg:justify-end">
-          <label className="relative">
+        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 lg:w-auto lg:justify-end">
+          <label className="relative block w-full sm:w-48">
             <span className="sr-only">Assignee</span>
-            <select value={techs.find((tech) => tech.name === ticket.assignee)?.id ?? ""} onChange={(event) => assign(event.target.value)} className="btn h-full appearance-none pr-9">
+            <select value={techs.find((tech) => tech.name === ticket.assignee)?.id ?? ""} onChange={(event) => assign(event.target.value)} className="btn h-10 w-full appearance-none justify-start pl-3 pr-10 text-left text-xs">
               <option value="">Unassigned</option>
               {techs.map((tech) => <option key={tech.id} value={tech.id}>{tech.name}</option>)}
             </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-3" size={14} />
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" size={14} aria-hidden="true" />
           </label>
-          <label className="relative">
+          <label className="relative block w-full sm:w-48">
             <span className="sr-only">Status</span>
-            <select value={ticket.status} onChange={(event) => updateStatus(event.target.value as TicketStatus)} className="btn h-full appearance-none pr-9">
+            <select value={ticket.status} onChange={(event) => updateStatus(event.target.value as TicketStatus)} className="btn h-10 w-full appearance-none justify-start pl-3 pr-10 text-left text-xs">
               {statuses.map((status) => <option key={status}>{status}</option>)}
             </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-3" size={14} />
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" size={14} aria-hidden="true" />
           </label>
-          <label className="relative">
+          <label className="relative block w-full sm:w-48">
             <span className="sr-only">Priority</span>
-            <select value={ticket.priority} onChange={(event) => updatePriority(event.target.value as Priority)} className="btn h-full appearance-none pr-9">
+            <select value={ticket.priority} onChange={(event) => updatePriority(event.target.value as Priority)} className="btn h-10 w-full appearance-none justify-start pl-3 pr-10 text-left text-xs">
               {priorities.map((priority) => <option key={priority}>{priority}</option>)}
             </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-3" size={14} />
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" size={14} aria-hidden="true" />
           </label>
         </div>
       </header>
