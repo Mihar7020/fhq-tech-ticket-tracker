@@ -119,7 +119,7 @@ function SchoolCards({ sites }: { sites: Site[] }) {
         <article className="card-quiet p-5" key={site.id} style={{ borderTopColor: site.color, borderTopWidth: 3 }}>
           <div className="flex items-start justify-between"><div><span className="chip">{site.code}</span><h3 className="display mt-3 text-2xl">{site.name}</h3></div></div>
           <p className="muted mt-2 text-xs">{site.address}</p>
-          <dl className="mt-5 space-y-2 border-t divider pt-4 text-xs"><div className="flex justify-between"><dt className="muted">Primary tech</dt><dd>{site.primaryTech}</dd></div></dl>
+          <dl className="mt-5 space-y-2 border-t divider pt-4 text-xs"><div className="flex justify-between gap-4"><dt className="muted">Support coverage</dt><dd className="text-right">All FHQ Tech technicians</dd></div></dl>
         </article>
       ))}
     </div>

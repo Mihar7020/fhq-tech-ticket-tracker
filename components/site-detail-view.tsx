@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, Clock3, TrendingUp, Users } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { TicketRow } from "@/components/ticket-row";
+import { SchoolTicketPrintList } from "@/components/school-ticket-print-list";
 import { isActiveTicket } from "@/lib/ticket-status";
 import type { Site, Ticket } from "@/lib/types";
 
@@ -17,7 +17,7 @@ export function SiteDetailView({ site, tickets }: { site: Site; tickets: Ticket[
       <PageHeader
         eyebrow={`${site.code} - ${site.timezone}`}
         title={site.name}
-        description={`${site.address}. Primary coverage: ${site.primaryTech}. Bell schedule: ${site.bellSchedule}.`}
+        description={`${site.address}. Supported by the full FHQ Tech team.${site.bellSchedule ? ` Bell schedule: ${site.bellSchedule}.` : ""}`}
         actions={<Link href="/tickets/new" className="btn btn-primary">New request</Link>}
       />
 
@@ -29,10 +29,7 @@ export function SiteDetailView({ site, tickets }: { site: Site; tickets: Ticket[
       </section>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
-        <section className="card overflow-hidden">
-          <div className="border-b divider p-5"><p className="label">Current work</p><h2 className="display mt-1 text-2xl">Tickets at {site.code}</h2></div>
-          {siteTickets.length ? siteTickets.map((ticket) => <TicketRow key={ticket.id} ticket={ticket} compact />) : <div className="p-12 text-center"><p className="display text-2xl">This school is clear.</p></div>}
-        </section>
+        <SchoolTicketPrintList site={site} tickets={siteTickets} />
         <section className="card p-5">
           <p className="label">Recurring at this school</p>
           <h2 className="display mt-1 text-2xl">Pattern watch</h2>

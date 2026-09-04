@@ -2,7 +2,8 @@
 
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, BookmarkPlus, GripVertical, LayoutDashboard, SlidersHorizontal } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, BookmarkPlus, GripVertical, LayoutDashboard, Printer, SlidersHorizontal } from "lucide-react";
 import { motion } from "framer-motion";
 import { PageHeader } from "@/components/page-header";
 import { DoomMeter } from "@/components/doom-meter";
@@ -25,8 +26,10 @@ export function BoardView({ sites, initialTickets }: { sites: Site[]; initialTic
   const [mode, setMode] = useState<GroupMode>("site");
   const [boardTickets, setBoardTickets] = useState(initialTickets.filter(isActiveTicket));
   const [dragId, setDragId] = useState<string>();
+  const [savingId, setSavingId] = useState<string>();
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useApp();
+  const router = useRouter();
 
   const groups = useMemo(() => {
     if (mode === "site") {
@@ -37,18 +40,31 @@ export function BoardView({ sites, initialTickets }: { sites: Site[]; initialTic
     return keys.map((key, index) => ({ key, label: key, color: index === 0 ? "#256b73" : "#8d867a" }));
   }, [mode, boardTickets, sites]);
 
-  function moveTo(group: string) {
-    if (!dragId) return;
-    setBoardTickets((current) => current.map((ticket) => {
-      if (ticket.id !== dragId) return ticket;
-      if (mode === "site") return { ...ticket, siteId: group === "unrouted" ? undefined : group };
-      if (mode === "assignee") return { ...ticket, assignee: group === "Unassigned" ? undefined : group };
-      if (mode === "status") return { ...ticket, status: group as Ticket["status"] };
-      if (mode === "priority") return { ...ticket, priority: group as Ticket["priority"] };
-      return ticket;
-    }));
-    toast(`Ticket moved to ${groups.find((item) => item.key === group)?.label} - undo available`);
+  async function moveTo(group: string) {
+    if (!dragId || mode !== "site" || savingId) return;
+    const ticket = boardTickets.find((item) => item.id === dragId);
+    if (!ticket) return;
+    const nextSiteId = group === "unrouted" ? undefined : group;
+    const previousSiteId = ticket.siteId;
     setDragId(undefined);
+    if (previousSiteId === nextSiteId) return;
+
+    setSavingId(ticket.id);
+    setBoardTickets((current) => current.map((item) => item.id === ticket.id ? { ...item, siteId: nextSiteId } : item));
+    const response = await fetch(`/api/tickets/${ticket.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ siteId: nextSiteId ?? null }),
+    });
+    setSavingId(undefined);
+    if (!response.ok) {
+      setBoardTickets((current) => current.map((item) => item.id === ticket.id ? { ...item, siteId: previousSiteId } : item));
+      toast("Could not update the ticket school. It was moved back.");
+      return;
+    }
+    const destination = groups.find((item) => item.key === group)?.label ?? "Unrouted";
+    toast(`${ticket.number} assigned to ${destination}`);
+    router.refresh();
   }
 
   function scrollBoard(event: React.WheelEvent<HTMLDivElement>) {
@@ -88,7 +104,7 @@ export function BoardView({ sites, initialTickets }: { sites: Site[]; initialTic
             const groupTickets = boardTickets.filter((ticket) => String(getGroup(ticket, mode)) === group.key);
             const atRisk = groupTickets.filter((ticket) => ticket.doomRisk >= 80).length;
             return (
-              <section key={group.key} className="card-quiet min-h-[560px] overflow-hidden" onDragOver={(event) => event.preventDefault()} onDrop={() => moveTo(group.key)}>
+              <section key={group.key} className="card-quiet min-h-[560px] overflow-hidden" onDragOver={(event) => { if (mode === "site") event.preventDefault(); }} onDrop={() => void moveTo(group.key)}>
                 <header className="sticky top-0 z-10 border-b divider bg-[var(--ink-2)] p-4" style={{ boxShadow: `inset 0 3px 0 ${group.color}` }}>
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
@@ -97,7 +113,10 @@ export function BoardView({ sites, initialTickets }: { sites: Site[]; initialTic
                         <strong className="truncate">{"long" in group ? group.long : group.label}</strong>
                       </div>
                     </div>
-                    <span className="chip">{groupTickets.length}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="chip">{groupTickets.length}</span>
+                      {mode === "site" && group.key !== "unrouted" ? <Link href={`/sites/${group.key}`} className="btn icon-btn h-7 min-h-7 w-7" aria-label={`Select and print tickets for ${"long" in group ? group.long : group.label}`}><Printer size={12} /></Link> : null}
+                    </div>
                   </div>
                   <div className="mt-3 flex items-center justify-between text-[10px] muted">
                     <span>{atRisk ? <span className="danger flex items-center gap-1"><AlertTriangle size={10} /> {atRisk} at risk</span> : "No immediate risk"}</span>
@@ -108,13 +127,13 @@ export function BoardView({ sites, initialTickets }: { sites: Site[]; initialTic
                   {groupTickets.length ? groupTickets.map((ticket, index) => (
                     <motion.article
                       layout
-                      draggable
+                      draggable={mode === "site" && !savingId}
                       onDragStart={() => setDragId(ticket.id)}
                       key={ticket.id}
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: Math.min(index * .035, .25) }}
-                      className="group cursor-grab rounded-lg border divider bg-[var(--ink-3)] p-3 shadow-sm active:cursor-grabbing"
+                      className={`group rounded-lg border divider bg-[var(--ink-3)] p-3 shadow-sm ${mode === "site" ? "cursor-grab active:cursor-grabbing" : ""} ${savingId === ticket.id ? "opacity-60" : ""}`}
                     >
                       <div className="mb-3 flex items-start gap-2">
                         <GripVertical size={14} className="muted mt-0.5 opacity-0 transition group-hover:opacity-100" />
@@ -130,7 +149,7 @@ export function BoardView({ sites, initialTickets }: { sites: Site[]; initialTic
                     <div className="grid min-h-32 place-items-center rounded-lg border border-dashed divider p-5 text-center">
                       <div>
                         <p className="font-semibold">Column clear</p>
-                        <p className="muted mt-1 text-[10px]">Drop a ticket here to re-route it.</p>
+                        <p className="muted mt-1 text-[10px]">{mode === "site" ? "Drop a ticket here to assign its school." : "No active tickets in this group."}</p>
                       </div>
                     </div>
                   )}
@@ -141,7 +160,7 @@ export function BoardView({ sites, initialTickets }: { sites: Site[]; initialTic
         </div>
       </div>
 
-      <p className="muted text-[10px]">Accessible alternative: open a ticket and use the labeled school or assignment controls.</p>
+      <p className="muted text-[10px]">Drag between school columns to update routing. Accessible alternative: open a ticket and use the labeled school control.</p>
     </div>
   );
 }

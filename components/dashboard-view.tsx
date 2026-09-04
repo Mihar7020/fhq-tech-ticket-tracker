@@ -88,7 +88,7 @@ export function DashboardView({ tickets, techs, siteMetrics }: { tickets: Ticket
                         <strong className="text-xs">{tech.name}</strong>
                         <span className="muted text-[10px]">{tech.open}/{tech.capacity}</span>
                       </div>
-                      <span className="muted text-[10px]">{tech.status} - {tech.sites.join(", ")}</span>
+                      <span className="muted text-[10px]">Available for all schools</span>
                     </div>
                   </div>
                   <div className="ml-11 h-1.5 overflow-hidden rounded-full bg-[var(--ink-3)]">
