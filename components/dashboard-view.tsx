@@ -52,7 +52,7 @@ export function DashboardView({ tickets, techs, siteMetrics }: { tickets: Ticket
         })}
       </section>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,.8fr)]">
+      <div className="mt-5 grid gap-5">
         <section className="card overflow-hidden">
           <div className="flex items-center justify-between border-b divider px-5 py-4">
             <div>
@@ -69,7 +69,7 @@ export function DashboardView({ tickets, techs, siteMetrics }: { tickets: Ticket
           )}
         </section>
 
-        <div className="grid gap-5">
+        <div className="grid gap-5 lg:grid-cols-2">
           <section className="card p-5">
             <div className="mb-5 flex items-center justify-between">
               <div>
