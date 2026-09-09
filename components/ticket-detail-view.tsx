@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronDown, Clock3, Merge, MessageSquareText, Pencil, Save, Send, Trash2, UserCheck, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Clock3, Merge, MessageSquareText, Pencil, Save, Send, StickyNote, Trash2, UserCheck, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { SiteBadge } from "@/components/site-badge";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
@@ -42,6 +42,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
   const { toast } = useApp();
   const router = useRouter();
   const site = useMemo(() => sites.find((item) => item.id === ticket.siteId), [sites, ticket.siteId]);
+  const internalNotes = useMemo(() => timeline.filter((event) => event.internal && event.kind === "note"), [timeline]);
   const currentTechId = currentUserEmail.toLowerCase().startsWith("joseph") ? "joe" : currentUserEmail.toLowerCase().startsWith("rodello") ? "rodello" : currentUserEmail.toLowerCase().startsWith("mihar") ? "mihar" : techs[0]?.id;
 
   async function patchTicket(body: Record<string, unknown>) {
@@ -364,6 +365,33 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
         </div>
 
         <aside className="space-y-5">
+          <AnimatePresence initial={false}>
+            {internalNotes.length ? (
+              <motion.section
+                className="sticky top-4 z-10 rounded-lg border border-[color:rgba(37,107,115,.22)] bg-[color:rgba(255,252,232,.96)] p-5 shadow-[0_18px_45px_rgba(35,31,25,.14)]"
+                initial={{ opacity: 0, y: 8, rotate: -0.5 }}
+                animate={{ opacity: 1, y: 0, rotate: -0.5 }}
+                exit={{ opacity: 0, y: 8 }}
+              >
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="label text-[color:var(--teal)]">Internal notes</p>
+                    <h2 className="display mt-1 text-xl">Team sticky note</h2>
+                  </div>
+                  <span className="grid h-9 w-9 place-items-center rounded-lg bg-[color:rgba(37,107,115,.12)] text-[color:var(--teal)]"><StickyNote size={17} /></span>
+                </div>
+                <div className="max-h-[360px] space-y-3 overflow-y-auto pr-1">
+                  {internalNotes.map((note) => (
+                    <article key={note.id} className="rounded-md border border-[color:rgba(37,107,115,.16)] bg-white/55 p-3">
+                      <p className="whitespace-pre-wrap text-xs leading-5">{note.body}</p>
+                      <p className="mt-2 text-[10px] muted">{note.actor} - {note.at}</p>
+                    </article>
+                  ))}
+                </div>
+              </motion.section>
+            ) : null}
+          </AnimatePresence>
+
           <section className="card p-5">
             <p className="label mb-4">Ticket admin</p>
             <dl className="space-y-3 text-xs">
