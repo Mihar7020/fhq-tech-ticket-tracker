@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 
 const fieldSchema = z.enum(["name", "email", "site", "role", "department", "room", "phone", "active", "metadata", "ignore"]);
 const importSchema = z.object({
-  rows: z.array(z.record(z.string(), z.string())).min(1).max(5000),
+  rows: z.array(z.record(z.string(), z.unknown())).min(1).max(5000),
   mapping: z.record(z.string(), fieldSchema),
 });
 
@@ -33,7 +33,8 @@ export async function POST(request: Request) {
   const session = await getSession();
   if (!session || session.role === "READ_ONLY") return Response.json({ error: "forbidden" }, { status: 403 });
   const parsed = importSchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return Response.json({ error: "invalid_request" }, { status: 400 });
+  if (!parsed.success) return Response.json({ error: "invalid_request", issues: parsed.error.issues.map((issue) => issue.message) }, { status: 400 });
+  const rows = parsed.data.rows.map((row) => Object.fromEntries(Object.entries(row).map(([key, value]) => [key, String(value ?? "").trim()])));
 
   const headerFor = (field: z.infer<typeof fieldSchema>) => Object.entries(parsed.data.mapping).find(([, mapped]) => mapped === field)?.[0];
   const valueFor = (row: Record<string, string>, field: z.infer<typeof fieldSchema>) => {
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
       siteByLabel.set(alias, site.id);
     }
   }
-  const prepared = parsed.data.rows.map((row) => {
+  const prepared = rows.map((row) => {
     const fullName = valueFor(row, "name").replace(/\s+/g, " ");
     const email = valueFor(row, "email").toLowerCase();
     const siteLabel = valueFor(row, "site");
