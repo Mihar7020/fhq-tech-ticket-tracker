@@ -77,7 +77,7 @@ export function DirectoryView({ initialPeople, sites }: { initialPeople: Person[
         </div>
 
         {tab === "people" && <PeopleTable people={filtered} clearFilters={() => { setQuery(""); setSiteFilter("all"); }} onDelete={async (person) => { if (!window.confirm(`Remove ${person.name} from the directory? Records with ticket history will be deactivated instead.`)) return; const response = await fetch(`/api/people/${person.id}`, { method: "DELETE" }); if (!response.ok) { toast("Could not remove this person"); return; } const result = await response.json() as { action: string }; setPeople((current) => result.action === "deleted" ? current.filter((item) => item.id !== person.id) : current.map((item) => item.id === person.id ? { ...item, active: false } : item)); toast(result.action === "deleted" ? "Person deleted" : "Person deactivated to preserve ticket history"); }} />}
-        {tab === "schools" && <SchoolCards sites={sites} />}
+        {tab === "schools" && <SchoolCards sites={sites} people={people} />}
         {tab === "history" && <HistoryList />}
       </section>
 
@@ -112,16 +112,33 @@ function PeopleTable({ people, clearFilters, onDelete }: { people: Person[]; cle
   );
 }
 
-function SchoolCards({ sites }: { sites: Site[] }) {
+function SchoolCards({ sites, people }: { sites: Site[]; people: Person[] }) {
+  const activeStaffBySite = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const person of people) {
+      if (!person.active || !person.siteId) continue;
+      counts.set(person.siteId, (counts.get(person.siteId) ?? 0) + 1);
+    }
+    return counts;
+  }, [people]);
+
   return (
     <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">
-      {sites.map((site) => (
+      {sites.map((site) => {
+        const activeStaff = activeStaffBySite.get(site.id) ?? 0;
+        return (
         <article className="card-quiet p-5" key={site.id} style={{ borderTopColor: site.color, borderTopWidth: 3 }}>
           <div className="flex items-start justify-between"><div><span className="chip">{site.code}</span><h3 className="display mt-3 text-2xl">{site.name}</h3></div></div>
           <p className="muted mt-2 text-xs">{site.address}</p>
-          <dl className="mt-5 space-y-2 border-t divider pt-4 text-xs"><div className="flex justify-between gap-4"><dt className="muted">Support coverage</dt><dd className="text-right">All FHQ Tech technicians</dd></div></dl>
+          <dl className="mt-5 border-t divider pt-4 text-xs">
+            <div className="flex items-end justify-between gap-4">
+              <dt className="muted">Active staff</dt>
+              <dd className="display text-right text-3xl">{activeStaff}</dd>
+            </div>
+          </dl>
         </article>
-      ))}
+        );
+      })}
     </div>
   );
 }

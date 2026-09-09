@@ -69,6 +69,9 @@ export function BoardView({ sites, initialTickets }: { sites: Site[]; initialTic
   function scrollBoard(event: React.WheelEvent<HTMLDivElement>) {
     const element = scrollRef.current;
     if (!element || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+    const target = event.target as HTMLElement;
+    const verticalScroller = target.closest("[data-board-column-scroll]");
+    if (verticalScroller) return;
     event.preventDefault();
     element.scrollLeft += event.deltaY;
   }
@@ -122,7 +125,7 @@ export function BoardView({ sites, initialTickets }: { sites: Site[]; initialTic
                     <span>{Math.round(groupTickets.reduce((sum, item) => sum + item.doomRisk, 0) / Math.max(groupTickets.length, 1))}% avg</span>
                   </div>
                 </header>
-                <div className="space-y-2 p-2">
+                <div data-board-column-scroll className="max-h-[520px] space-y-2 overflow-y-auto overscroll-contain p-2 pr-1">
                   {groupTickets.length ? groupTickets.map((ticket, index) => (
                     <motion.article
                       layout
