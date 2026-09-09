@@ -8,6 +8,15 @@ const importSchema = z.object({
   mapping: z.record(z.string(), fieldSchema),
 });
 
+const schoolAliases = [
+  { tokens: ["mec", "muscowpetung", "muscowpetungschool"], aliases: ["mec", "muscowpetung", "muscowpetungschool"] },
+  { tokens: ["ppk", "pvl", "peepeekisis", "peepeekisisschool", "peepeekisispesakastew", "peepeekisispesakastewschool"], aliases: ["ppk", "pvl", "peepeekisis", "peepeekisisschool"] },
+  { tokens: ["cps", "chiefpayepot", "chiefpayepotschool", "chiefpaskwa", "chiefpaskwaschool"], aliases: ["cps", "chiefpayepot", "chiefpayepotschool"] },
+  { tokens: ["sb", "sbec", "standingbuffalo", "standingbuffaloschool"], aliases: ["sb", "sbec", "standingbuffalo"] },
+  { tokens: ["olc", "ok", "okanese", "okaneselearningcenter", "okaneselearningcentre"], aliases: ["olc", "ok", "okanese", "okaneselearningcenter", "okaneselearningcentre"] },
+  { tokens: ["omec", "ocenaman", "ocenamanschool", "oceanman", "oceanmanschool"], aliases: ["omec", "ocenaman", "ocenamanschool", "oceanman", "oceanmanschool"] },
+];
+
 function normalizeName(value: string) {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
@@ -37,18 +46,10 @@ export async function POST(request: Request) {
     for (const value of [site.id, site.code, site.name]) {
       siteByLabel.set(normalizeLabel(value), site.id);
     }
-  }
-  const aliasByCode: Record<string, string[]> = {
-    MEC: ["mec", "muscowpetung", "muscowpetungschool"],
-    PPK: ["ppk", "peepeekisis", "peepeekisisschool"],
-    CPS: ["cps", "chiefpayepot", "chiefpayepotschool"],
-    SBEC: ["sb", "sbec", "standingbuffalo"],
-    OK: ["olc", "ok", "okanese", "okaneselearningcenter", "okaneselearningcentre"],
-    OMEC: ["omec", "ocenaman", "ocenamanschool", "oceanman", "oceanmanschool"],
-  };
-  for (const site of sites) {
-    for (const alias of aliasByCode[site.code.toUpperCase()] ?? []) {
-      siteByLabel.set(normalizeLabel(alias), site.id);
+    const siteLabels = [site.id, site.code, site.name].map(normalizeLabel);
+    const aliasGroup = schoolAliases.find((group) => group.tokens.some((token) => siteLabels.includes(token)));
+    for (const alias of aliasGroup?.aliases ?? []) {
+      siteByLabel.set(alias, site.id);
     }
   }
   const prepared = parsed.data.rows.map((row) => {
