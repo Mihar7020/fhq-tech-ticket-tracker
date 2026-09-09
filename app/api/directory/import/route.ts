@@ -12,6 +12,10 @@ function normalizeName(value: string) {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+function normalizeLabel(value: string) {
+  return normalizeName(value).replace(/[^a-z0-9]/g, "");
+}
+
 function activeValue(value: string) {
   return !["false", "no", "inactive", "0", "disabled"].includes(value.trim().toLowerCase());
 }
@@ -28,43 +32,68 @@ export async function POST(request: Request) {
     return header ? row[header]?.trim() ?? "" : "";
   };
   const sites = await db.site.findMany({ select: { id: true, code: true, name: true } });
-  const siteByLabel = new Map(sites.flatMap((site) => [[site.id.toLowerCase(), site.id], [site.code.toLowerCase(), site.id], [site.name.toLowerCase(), site.id]]));
+  const siteByLabel = new Map<string, string>();
+  for (const site of sites) {
+    for (const value of [site.id, site.code, site.name]) {
+      siteByLabel.set(normalizeLabel(value), site.id);
+    }
+  }
+  const aliasByCode: Record<string, string[]> = {
+    MEC: ["mec", "muscowpetung", "muscowpetungschool"],
+    PPK: ["ppk", "peepeekisis", "peepeekisisschool"],
+    CPS: ["cps", "chiefpayepot", "chiefpayepotschool"],
+    SBEC: ["sb", "sbec", "standingbuffalo"],
+    OK: ["olc", "ok", "okanese", "okaneselearningcenter", "okaneselearningcentre"],
+    OMEC: ["omec", "ocenaman", "ocenamanschool", "oceanman", "oceanmanschool"],
+  };
+  for (const site of sites) {
+    for (const alias of aliasByCode[site.code.toUpperCase()] ?? []) {
+      siteByLabel.set(normalizeLabel(alias), site.id);
+    }
+  }
   const prepared = parsed.data.rows.map((row) => {
     const fullName = valueFor(row, "name").replace(/\s+/g, " ");
     const email = valueFor(row, "email").toLowerCase();
-    const siteId = siteByLabel.get(valueFor(row, "site").toLowerCase());
+    const siteLabel = valueFor(row, "site");
+    const siteId = siteByLabel.get(normalizeLabel(siteLabel));
     const metadata = Object.fromEntries(Object.entries(parsed.data.mapping).filter(([, mapped]) => mapped === "metadata").map(([header]) => [header, row[header] ?? ""]));
-    return { row, fullName, email, siteId, metadata };
+    return { row, fullName, email, siteLabel, siteId, metadata };
   });
   if (prepared.some((item) => !item.fullName || !/^\S+@\S+\.\S+$/.test(item.email))) return Response.json({ error: "invalid_row" }, { status: 400 });
-  if (prepared.some((item) => !item.siteId)) return Response.json({ error: "unknown_site" }, { status: 400 });
+  const unknownSites = [...new Set(prepared.filter((item) => !item.siteId).map((item) => item.siteLabel).filter(Boolean))];
+  if (unknownSites.length) return Response.json({ error: "unknown_site", unknownSites }, { status: 400 });
 
-  const result = await db.$transaction(async (tx) => {
-    let added = 0;
-    let updated = 0;
-    for (const item of prepared) {
-      const alias = await tx.personEmailAlias.findUnique({ where: { normalized: item.email }, select: { personId: true } });
-      const personData = {
-        fullName: item.fullName,
-        normalizedName: normalizeName(item.fullName),
-        roleTitle: valueFor(item.row, "role") || null,
-        department: valueFor(item.row, "department") || null,
-        room: valueFor(item.row, "room") || null,
-        phone: valueFor(item.row, "phone") || null,
-        active: activeValue(valueFor(item.row, "active")),
-        siteId: item.siteId!,
-        metadata: Object.keys(item.metadata).length ? item.metadata : undefined,
-      };
-      if (alias) {
-        await tx.person.update({ where: { id: alias.personId }, data: personData });
-        updated += 1;
-      } else {
-        await tx.person.create({ data: { ...personData, aliases: { create: { email: item.email, normalized: item.email, isPrimary: true, source: "directory_import" } } } });
-        added += 1;
+  try {
+    const result = await db.$transaction(async (tx) => {
+      let added = 0;
+      let updated = 0;
+      for (const item of prepared) {
+        const alias = await tx.personEmailAlias.findUnique({ where: { normalized: item.email }, select: { personId: true } });
+        const personData = {
+          fullName: item.fullName,
+          normalizedName: normalizeName(item.fullName),
+          roleTitle: valueFor(item.row, "role") || null,
+          department: valueFor(item.row, "department") || null,
+          room: valueFor(item.row, "room") || null,
+          phone: valueFor(item.row, "phone") || null,
+          active: activeValue(valueFor(item.row, "active")),
+          siteId: item.siteId!,
+          metadata: Object.keys(item.metadata).length ? item.metadata : undefined,
+        };
+        if (alias) {
+          await tx.person.update({ where: { id: alias.personId }, data: personData });
+          updated += 1;
+        } else {
+          await tx.person.create({ data: { ...personData, aliases: { create: { email: item.email, normalized: item.email, isPrimary: true, source: "directory_import" } } } });
+          added += 1;
+        }
       }
-    }
-    return { added, updated };
-  });
+      return { added, updated };
+    });
 
-  return Response.json({ ok: true, ...result });
+    return Response.json({ ok: true, ...result });
+  } catch (error) {
+    console.error("[directory-import] failed", error);
+    return Response.json({ error: "import_failed" }, { status: 500 });
+  }
 }

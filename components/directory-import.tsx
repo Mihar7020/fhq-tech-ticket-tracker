@@ -74,8 +74,11 @@ export function DirectoryImport() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rows: validated.filter((item) => !item.errors.length).map((item) => item.row), mapping }),
       });
-      const result = await response.json() as { added?: number; updated?: number; error?: string };
-      if (!response.ok) throw new Error(result.error === "unknown_site" ? "One or more schools could not be matched." : "The directory import could not be saved.");
+      const result = await response.json() as { added?: number; updated?: number; error?: string; unknownSites?: string[] };
+      if (!response.ok) {
+        const unknownSites = result.unknownSites?.slice(0, 6).join(", ");
+        throw new Error(result.error === "unknown_site" && unknownSites ? `These schools could not be matched: ${unknownSites}.` : "The directory import could not be saved.");
+      }
       toast(`Directory imported: ${result.added ?? 0} added, ${result.updated ?? 0} updated`);
       router.push("/directory");
       router.refresh();
