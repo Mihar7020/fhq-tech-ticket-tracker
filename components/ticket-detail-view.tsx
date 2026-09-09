@@ -13,7 +13,9 @@ import type { Priority, Site, Tech, Ticket, TicketStatus, TimelineEvent } from "
 const statuses: TicketStatus[] = ["New", "Triage", "In progress", "Waiting on staff", "Waiting on IT", "Resolved", "Voided"];
 const priorities: Priority[] = ["Critical", "High", "Normal", "Low"];
 
-export function TicketDetailView({ initialTicket, initialTimeline, sites, techs, mergeCandidates, currentUserEmail }: { initialTicket: Ticket; initialTimeline: TimelineEvent[]; sites: Site[]; techs: Tech[]; mergeCandidates: Ticket[]; currentUserEmail: string }) {
+type RoutingSuggestion = { id: string; site: { id: string; code: string; name: string } };
+
+export function TicketDetailView({ initialTicket, initialTimeline, sites, techs, mergeCandidates, currentUserEmail, pendingRoutingSuggestion }: { initialTicket: Ticket; initialTimeline: TimelineEvent[]; sites: Site[]; techs: Tech[]; mergeCandidates: Ticket[]; currentUserEmail: string; pendingRoutingSuggestion: RoutingSuggestion | null }) {
   const [ticket, setTicket] = useState(initialTicket);
   const [timeline, setTimeline] = useState(initialTimeline);
   const [noteMode, setNoteMode] = useState<"Public comment" | "Internal note">("Public comment");
@@ -25,6 +27,8 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
   const [editing, setEditing] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [voiding, setVoiding] = useState(false);
+  const [routingSuggestion, setRoutingSuggestion] = useState(pendingRoutingSuggestion);
+  const [routingAction, setRoutingAction] = useState<"assign" | "dismiss" | null>(null);
   const [draft, setDraft] = useState(() => ({
     subject: initialTicket.subject,
     summary: initialTicket.digest,
@@ -59,6 +63,43 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
     const response = await patchTicket({ priority });
     if (!response.ok) { setTicket((current) => ({ ...current, priority: previous })); toast("Could not change priority"); return; }
     toast(`Priority changed to ${priority}`);
+  }
+
+  async function updateSite(siteId: string) {
+    if (!siteId) return false;
+    const previous = ticket.siteId;
+    setTicket((current) => ({ ...current, siteId }));
+    const response = await patchTicket({ siteId });
+    if (!response.ok) {
+      setTicket((current) => ({ ...current, siteId: previous }));
+      toast("Could not assign school");
+      return false;
+    }
+    setDraft((current) => ({ ...current, siteId }));
+    toast("School assigned");
+    router.refresh();
+    return true;
+  }
+
+  async function reviewRoutingSuggestion(accepted: boolean) {
+    if (!routingSuggestion || routingAction) return;
+    setRoutingAction(accepted ? "assign" : "dismiss");
+    if (accepted && !(await updateSite(routingSuggestion.site.id))) {
+      setRoutingAction(null);
+      return;
+    }
+    const response = await fetch(`/api/routing-decisions/${routingSuggestion.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accepted }),
+    });
+    setRoutingAction(null);
+    if (!response.ok) {
+      toast("Could not save routing decision");
+      return;
+    }
+    setRoutingSuggestion(null);
+    if (!accepted) toast("Routing suggestion dismissed");
   }
 
   async function assign(id: string) {
@@ -135,7 +176,16 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
         <div>
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs muted">{ticket.number}</span>
-            <SiteBadge siteId={ticket.siteId} />
+            {ticket.siteId ? <SiteBadge siteId={ticket.siteId} /> : (
+              <label className="relative block">
+                <span className="sr-only">Assign school</span>
+                <select value={ticket.siteId ?? ""} onChange={(event) => void updateSite(event.target.value)} className="chip h-8 appearance-none bg-[var(--ink-2)] pl-3 pr-8 text-xs font-semibold">
+                  <option value="" disabled>Assign school</option>
+                  {sites.map((item) => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2" size={13} aria-hidden="true" />
+              </label>
+            )}
             <StatusBadge status={ticket.status} />
             <PriorityBadge priority={ticket.priority} />
           </div>
@@ -173,6 +223,16 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
           </label>
         </div>
       </header>
+
+      {routingSuggestion && !ticket.siteId ? (
+        <section className="card mb-5 flex flex-col gap-3 border-[color:rgba(37,107,115,.35)] bg-[color:rgba(37,107,115,.08)] p-4 sm:flex-row sm:items-center sm:justify-between" role="status">
+          <p className="text-sm font-semibold">Looks like this is from {routingSuggestion.site.name} — assign?</p>
+          <div className="flex gap-2">
+            <button type="button" className="btn btn-primary text-xs" disabled={routingAction !== null} onClick={() => void reviewRoutingSuggestion(true)}>{routingAction === "assign" ? "Assigning..." : "Accept"}</button>
+            <button type="button" className="btn text-xs" disabled={routingAction !== null} onClick={() => void reviewRoutingSuggestion(false)}>{routingAction === "dismiss" ? "Dismissing..." : "Dismiss"}</button>
+          </div>
+        </section>
+      ) : null}
 
       <AnimatePresence>
         {resolved && (

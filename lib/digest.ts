@@ -13,6 +13,36 @@ export type DigestExtraction = {
 };
 
 const devices = ["projector", "chromebook", "printer", "smart board", "wifi", "wi-fi", "powerschool", "teams", "laptop"];
+
+export async function generateAiSummary(text: string): Promise<string | null> {
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
+  const model = process.env.OPENROUTER_SUMMARY_MODEL?.trim();
+  if (!apiKey || !model || !text.trim()) return null;
+
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        temperature: 0.2,
+        max_tokens: 120,
+        messages: [
+          { role: "system", content: "Summarize this IT helpdesk email in 1-2 concise sentences. State the user's problem and requested outcome. Do not invent details." },
+          { role: "user", content: text },
+        ],
+      }),
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!response.ok) return null;
+    const result = await response.json() as { choices?: { message?: { content?: unknown } }[] };
+    const summary = result.choices?.[0]?.message?.content;
+    return typeof summary === "string" && summary.trim() ? summary.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 export function extractDigest(text: string): DigestExtraction {
   const clean = text.replace(/\r/g, "").trim();
   if (clean.length < 24) return { available: false, asks: [], missingInfo: [], confidence: 0, sources: {}, failureReason: "Email is too short for a trustworthy digest." };

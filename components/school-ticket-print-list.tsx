@@ -6,11 +6,17 @@ import { Printer } from "lucide-react";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
 import type { Site, Ticket } from "@/lib/types";
 
+const PAGE_SIZE = 15;
+
 export function SchoolTicketPrintList({ site, tickets }: { site: Site; tickets: Ticket[] }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [page, setPage] = useState(1);
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const selectedTickets = useMemo(() => tickets.filter((ticket) => selectedIdSet.has(ticket.id)), [selectedIdSet, tickets]);
   const allSelected = tickets.length > 0 && tickets.every((ticket) => selectedIdSet.has(ticket.id));
+  const pageCount = Math.max(1, Math.ceil(tickets.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const visibleTickets = useMemo(() => tickets.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE), [currentPage, tickets]);
 
   function toggleTicket(id: string) {
     setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
@@ -39,7 +45,8 @@ export function SchoolTicketPrintList({ site, tickets }: { site: Site; tickets: 
 
       {tickets.length ? (
         <div>
-          {tickets.map((ticket) => (
+          <div className="h-[380px] overflow-y-auto" tabIndex={0} aria-label={`Tickets at ${site.code}, page ${currentPage} of ${pageCount}`}>
+          {visibleTickets.map((ticket) => (
             <div key={ticket.id} className="grid grid-cols-[44px_minmax(0,1fr)] items-stretch border-b divider last:border-0">
               <label className="grid cursor-pointer place-items-center border-r divider bg-[var(--ink-3)]/35">
                 <input type="checkbox" className="h-4 w-4 accent-[var(--gold)]" aria-label={`Select ${ticket.number} for printing`} checked={selectedIdSet.has(ticket.id)} onChange={() => toggleTicket(ticket.id)} />
@@ -54,6 +61,14 @@ export function SchoolTicketPrintList({ site, tickets }: { site: Site; tickets: 
               </Link>
             </div>
           ))}
+          </div>
+          {pageCount > 1 ? (
+            <nav className="flex items-center justify-between gap-3 border-t divider px-4 py-3" aria-label="Ticket list pages">
+              <button type="button" className="btn text-xs" disabled={currentPage === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</button>
+              <span className="muted text-xs" aria-live="polite">Page {currentPage} of {pageCount}</span>
+              <button type="button" className="btn text-xs" disabled={currentPage === pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))}>Next</button>
+            </nav>
+          ) : null}
         </div>
       ) : (
         <div className="p-12 text-center"><p className="display text-2xl">This school is clear.</p><p className="muted mt-2 text-sm">There are no active tickets to print.</p></div>

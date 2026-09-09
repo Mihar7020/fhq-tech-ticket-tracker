@@ -82,6 +82,15 @@ export async function getTicket(id: string) {
   return row ? { ticket: mapTicket(row), timeline: mapTimeline(row) } : null;
 }
 
+export async function getPendingRoutingSuggestion(ticketId: string) {
+  if (!hasDatabase()) return null;
+  return db.routingDecision.findFirst({
+    where: { ticketId, outcome: "SUGGESTED", accepted: null, siteId: { not: null } },
+    include: { site: { select: { id: true, code: true, name: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
 function mapTimeline(row: TicketRow): TimelineEvent[] {
   const messages: TimelineEvent[] = row.messages.map((message) => ({
     id: message.id,

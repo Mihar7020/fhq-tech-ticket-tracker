@@ -17,7 +17,18 @@ export async function POST(request: Request) {
   const secret = process.env.GRAPH_WEBHOOK_SECRET;
   if (!secret || parsed.data.value.some((item) => item.clientState !== secret)) return Response.json({ error: "invalid_client_state" }, { status: 401 });
   const accepted = parsed.data.value.map((item) => item.resourceData.id);
-  after(async () => { await Promise.allSettled(accepted.map(async (messageId) => ingestMime(await getMessageMime(messageId), prismaIngestRepository))); });
+  after(async () => {
+    await Promise.allSettled(accepted.map(async (messageId) => {
+      try {
+        const result = await ingestMime(await getMessageMime(messageId), prismaIngestRepository);
+        console.log("Graph message ingestion completed", { messageId, result });
+        return result;
+      } catch (error) {
+        console.error("Graph message ingestion failed", { messageId, error });
+        throw error;
+      }
+    }));
+  });
   return Response.json({ accepted: accepted.length }, { status: 202 });
 }
 

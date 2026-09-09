@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { simpleParser, type AddressObject } from "mailparser";
 import type { Person, Site } from "@/lib/types";
-import { extractDigest } from "@/lib/digest";
+import { extractDigest, generateAiSummary } from "@/lib/digest";
 import { resolveRoute } from "@/lib/routing";
 import { sanitizeEmailHtml, stripQuotedReply } from "@/lib/security";
 import { isAutomatedMessage, matchThread, normalizeSubject } from "@/lib/threading";
@@ -55,6 +55,8 @@ export async function ingestMime(raw: Buffer, repository: IngestRepository): Pro
   const [people, sites] = await Promise.all([repository.listPeople(), repository.listSites()]);
   const route = resolveRoute({ senderEmail: sender.address, displayName: sender.name, body: cleanText, people, sites });
   const digest = extractDigest(cleanText);
+  const aiSummary = await generateAiSummary(cleanText);
+  if (aiSummary) digest.problemStatement = aiSummary;
   const triage = triageEmail(cleanText, digest.affectedCount, digest.neededBy ? 60 : undefined);
   const maxAttachment = Number(process.env.ATTACHMENT_MAX_BYTES ?? 26_214_400);
   const attachments = await Promise.all(parsed.attachments.map(async (attachment) => {
