@@ -42,19 +42,32 @@ export async function ingestMime(raw: Buffer, repository: IngestRepository): Pro
   if (raw.byteLength > maxRaw) throw new Error("Raw message exceeds the 30 MB safety limit.");
   const parsed = await simpleParser(raw, { skipHtmlToText: false, skipTextToHtml: true, maxHtmlLengthToParse: 5_000_000 });
   const sender = firstAddress(parsed.from);
-  if (!sender?.address) return { kind: "ignored", reason: "Message has no parseable sender." };
+  if (!sender?.address) {
+    console.log("[ai-summary] not attempted: ignored email without sender");
+    return { kind: "ignored", reason: "Message has no parseable sender." };
+  }
   const internetMessageId = parsed.messageId?.trim();
-  if (!internetMessageId) return { kind: "ignored", reason: "Message has no Message-ID and cannot be deduplicated safely." };
+  if (!internetMessageId) {
+    console.log("[ai-summary] not attempted: ignored email without message id", { sender: sender.address });
+    return { kind: "ignored", reason: "Message has no Message-ID and cannot be deduplicated safely." };
+  }
   const headerValues: Record<string, string | undefined> = { "auto-submitted": parsed.headers.get("auto-submitted")?.toString(), precedence: parsed.headers.get("precedence")?.toString(), "x-autoreply": parsed.headers.get("x-autoreply")?.toString() };
-  if (isAutomatedMessage(headerValues, sender.address)) return { kind: "ignored", reason: "Loop protection blocked an automated response." };
+  if (isAutomatedMessage(headerValues, sender.address)) {
+    console.log("[ai-summary] not attempted: ignored automated email", { sender: sender.address });
+    return { kind: "ignored", reason: "Loop protection blocked an automated response." };
+  }
   const existing = await repository.listThreadMessages();
   const references = Array.isArray(parsed.references) ? parsed.references : parsed.references ? [parsed.references] : [];
   const threadMatch = matchThread({ messageId: internetMessageId, inReplyTo: parsed.inReplyTo, references, subject: parsed.subject ?? "(no subject)" }, existing);
-  if (threadMatch.kind === "duplicate") return { kind: "duplicate", reason: "Message-ID already ingested." };
+  if (threadMatch.kind === "duplicate") {
+    console.log("[ai-summary] not attempted: duplicate email", { messageId: internetMessageId });
+    return { kind: "duplicate", reason: "Message-ID already ingested." };
+  }
   const cleanText = stripQuotedReply(parsed.text ?? "");
   const [people, sites] = await Promise.all([repository.listPeople(), repository.listSites()]);
   const route = resolveRoute({ senderEmail: sender.address, displayName: sender.name, body: cleanText, people, sites });
   const digest = extractDigest(cleanText);
+  console.log("[ai-summary] attempting", { messageId: internetMessageId, textLength: cleanText.length });
   const aiSummary = await generateAiSummary(cleanText);
   if (aiSummary) digest.problemStatement = aiSummary;
   const triage = triageEmail(cleanText, digest.affectedCount, digest.neededBy ? 60 : undefined);
