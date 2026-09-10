@@ -33,9 +33,9 @@ export async function generateAiSummary(text: string): Promise<string | null> {
       body: JSON.stringify({
         model,
         temperature: 0.2,
-        max_tokens: 120,
+        max_tokens: 50,
         messages: [
-          { role: "system", content: "Summarize this IT helpdesk email in 1-2 concise sentences. State the user's problem and requested outcome. Do not invent details." },
+          { role: "system", content: "Write one short IT helpdesk ticket summary, maximum 18 words. State only the core issue. Do not add a requested outcome unless the email explicitly asks for one. Return only the summary text." },
           { role: "user", content: text },
         ],
       }),
