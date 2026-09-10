@@ -17,7 +17,14 @@ const devices = ["projector", "chromebook", "printer", "smart board", "wifi", "w
 export async function generateAiSummary(text: string): Promise<string | null> {
   const apiKey = process.env.OPENROUTER_API_KEY?.trim();
   const model = process.env.OPENROUTER_SUMMARY_MODEL?.trim();
-  if (!apiKey || !model || !text.trim()) return null;
+  if (!text.trim()) {
+    console.log("[ai-summary] skipped: empty text");
+    return null;
+  }
+  if (!apiKey || !model) {
+    console.log("[ai-summary] skipped: missing env", { hasApiKey: Boolean(apiKey), hasModel: Boolean(model) });
+    return null;
+  }
 
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -34,11 +41,20 @@ export async function generateAiSummary(text: string): Promise<string | null> {
       }),
       signal: AbortSignal.timeout(8_000),
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.error("[ai-summary] failed", { status: response.status, statusText: response.statusText, model });
+      return null;
+    }
     const result = await response.json() as { choices?: { message?: { content?: unknown } }[] };
     const summary = result.choices?.[0]?.message?.content;
-    return typeof summary === "string" && summary.trim() ? summary.trim() : null;
-  } catch {
+    if (typeof summary === "string" && summary.trim()) {
+      console.log("[ai-summary] used", { model });
+      return summary.trim();
+    }
+    console.log("[ai-summary] skipped: empty model response", { model });
+    return null;
+  } catch (error) {
+    console.error("[ai-summary] failed", { error: error instanceof Error ? error.message : "Unknown error", model });
     return null;
   }
 }
