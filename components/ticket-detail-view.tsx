@@ -29,6 +29,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
   const [voiding, setVoiding] = useState(false);
   const [routingSuggestion, setRoutingSuggestion] = useState(pendingRoutingSuggestion);
   const [routingAction, setRoutingAction] = useState<"assign" | "dismiss" | null>(null);
+  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
   const [draft, setDraft] = useState(() => ({
     subject: initialTicket.subject,
     summary: initialTicket.digest,
@@ -150,9 +151,22 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
     const internal = noteMode === "Internal note";
     const response = await fetch(`/api/tickets/${ticket.id}/comments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: message, internal }) });
     setSaving(false); if (!response.ok) { toast("Could not save the comment"); return; }
-    const result = await response.json() as { emailStatus?: "not_attempted" | "sent" | "failed" };
-    setTimeline((current) => [...current, { id: `local-${Date.now()}`, kind: internal ? "note" : "email", actor: "You", title: internal ? "Internal note" : "Public comment", body: message, at: "Just now", internal }]);
+    const result = await response.json() as { id?: string; emailStatus?: "not_attempted" | "sent" | "failed" };
+    setTimeline((current) => [...current, { id: result.id ?? `local-${Date.now()}`, kind: internal ? "note" : "email", actor: "You", title: internal ? "Internal note" : "Public comment", body: message, at: "Just now", internal }]);
     toast(internal ? "Internal note saved" : result.emailStatus === "failed" ? "Comment saved, but email reply failed" : result.emailStatus === "sent" ? "Comment saved and emailed" : "Public comment added"); setMessage("");
+  }
+
+  async function deleteInternalNote(noteId: string) {
+    if (!window.confirm("Delete this internal note?")) return;
+    setDeletingNoteId(noteId);
+    const response = await fetch(`/api/tickets/${ticket.id}/comments/${noteId}`, { method: "DELETE" });
+    setDeletingNoteId(null);
+    if (!response.ok) {
+      toast("Could not delete internal note");
+      return;
+    }
+    setTimeline((current) => current.filter((event) => event.id !== noteId));
+    toast("Internal note deleted");
   }
 
   async function mergeTicket() {
@@ -368,13 +382,11 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
           <AnimatePresence initial={false}>
             {internalNotes.length ? (
               <motion.section
-                className="relative rotate-[-0.7deg] overflow-hidden rounded-sm border border-[color:rgba(190,161,72,.45)] bg-[#fff4b8] p-5 pt-7 shadow-[0_16px_28px_rgba(35,31,25,.16)]"
-                initial={{ opacity: 0, y: 8, rotate: -0.5 }}
-                animate={{ opacity: 1, y: 0, rotate: -0.5 }}
+                className="overflow-hidden rounded-lg border border-[color:rgba(190,161,72,.45)] bg-[#fff4b8] p-5 shadow-[0_12px_24px_rgba(35,31,25,.12)]"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 8 }}
               >
-                <span className="absolute left-1/2 top-2 h-5 w-24 -translate-x-1/2 rotate-1 rounded-sm bg-white/50 shadow-sm" aria-hidden="true" />
-                <span className="absolute right-0 top-0 h-8 w-8 rounded-bl-sm border-b border-l border-[color:rgba(190,161,72,.35)] bg-[#f7df7c] shadow-[-2px_2px_6px_rgba(35,31,25,.10)]" aria-hidden="true" />
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
                     <p className="label text-[color:var(--teal)]">Internal notes</p>
@@ -385,8 +397,21 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
                 <div className="max-h-[360px] space-y-3 overflow-y-auto pr-1">
                   {internalNotes.map((note) => (
                     <article key={note.id} className="rounded-sm border border-[color:rgba(190,161,72,.30)] bg-[#fff9d7] p-3 shadow-[0_4px_10px_rgba(35,31,25,.08)]">
-                      <p className="whitespace-pre-wrap text-xs leading-5">{note.body}</p>
-                      <p className="mt-2 text-[10px] muted">{note.actor} - {note.at}</p>
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="whitespace-pre-wrap text-xs leading-5">{note.body}</p>
+                          <p className="mt-2 text-[10px] muted">{note.actor} - {note.at}</p>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn icon-btn h-7 min-h-7 w-7 shrink-0 bg-white/55 text-[color:var(--red)]"
+                          disabled={deletingNoteId === note.id}
+                          onClick={() => void deleteInternalNote(note.id)}
+                          aria-label="Delete internal note"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     </article>
                   ))}
                 </div>

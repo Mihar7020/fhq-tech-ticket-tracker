@@ -28,10 +28,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       console.error("Public comment email reply failed", { ticketId: ticket.id, publicId: ticket.publicId, error: emailError });
     }
   }
-  await db.$transaction([
+  const [message] = await db.$transaction([
     db.message.create({ data: { internetMessageId: `<comment-${randomUUID()}@fhqtc.local>`, direction: parsed.data.internal ? "INTERNAL" : "OUTBOUND", fromAddress: session.email, fromName: session.name, toAddresses: parsed.data.internal ? [] : [ticket.requesterEmailAtIntake], ccAddresses: [], subject: `Re: ${ticket.subject}`, textBody: parsed.data.body, sentAt: new Date(), ticketId: ticket.id, threadId: inbound?.threadId } }),
     db.auditLog.create({ data: { entityType: "Ticket", entityId: ticket.id, ticketId: ticket.id, actorId: actor?.id, action: parsed.data.internal ? "INTERNAL_NOTE" : "OUTBOUND_COMMENT", after: { emailStatus, ...(emailError ? { emailError } : {}) } } }),
     db.ticket.update({ where: { id: ticket.id }, data: { updatedAt: new Date() } }),
   ]);
-  return Response.json({ ok: true, emailStatus });
+  return Response.json({ ok: true, emailStatus, id: message.id });
 }
