@@ -368,21 +368,23 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
           <AnimatePresence initial={false}>
             {internalNotes.length ? (
               <motion.section
-                className="sticky top-4 z-10 rounded-lg border border-[color:rgba(37,107,115,.22)] bg-[color:rgba(255,252,232,.96)] p-5 shadow-[0_18px_45px_rgba(35,31,25,.14)]"
+                className="relative rotate-[-0.7deg] overflow-hidden rounded-sm border border-[color:rgba(190,161,72,.45)] bg-[#fff4b8] p-5 pt-7 shadow-[0_16px_28px_rgba(35,31,25,.16)]"
                 initial={{ opacity: 0, y: 8, rotate: -0.5 }}
                 animate={{ opacity: 1, y: 0, rotate: -0.5 }}
                 exit={{ opacity: 0, y: 8 }}
               >
+                <span className="absolute left-1/2 top-2 h-5 w-24 -translate-x-1/2 rotate-1 rounded-sm bg-white/50 shadow-sm" aria-hidden="true" />
+                <span className="absolute right-0 top-0 h-8 w-8 rounded-bl-sm border-b border-l border-[color:rgba(190,161,72,.35)] bg-[#f7df7c] shadow-[-2px_2px_6px_rgba(35,31,25,.10)]" aria-hidden="true" />
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
                     <p className="label text-[color:var(--teal)]">Internal notes</p>
                     <h2 className="display mt-1 text-xl">Team sticky note</h2>
                   </div>
-                  <span className="grid h-9 w-9 place-items-center rounded-lg bg-[color:rgba(37,107,115,.12)] text-[color:var(--teal)]"><StickyNote size={17} /></span>
+                  <span className="grid h-9 w-9 place-items-center rounded-full bg-white/45 text-[color:var(--teal)] shadow-sm"><StickyNote size={17} /></span>
                 </div>
                 <div className="max-h-[360px] space-y-3 overflow-y-auto pr-1">
                   {internalNotes.map((note) => (
-                    <article key={note.id} className="rounded-md border border-[color:rgba(37,107,115,.16)] bg-white/55 p-3">
+                    <article key={note.id} className="rounded-sm border border-[color:rgba(190,161,72,.30)] bg-[#fff9d7] p-3 shadow-[0_4px_10px_rgba(35,31,25,.08)]">
                       <p className="whitespace-pre-wrap text-xs leading-5">{note.body}</p>
                       <p className="mt-2 text-[10px] muted">{note.actor} - {note.at}</p>
                     </article>
