@@ -38,7 +38,8 @@ export async function sendThreadedReply(input: { messageId: string; comment: str
   const mailbox = process.env.GRAPH_MAILBOX;
   if (!mailbox) throw new Error("GRAPH_MAILBOX is not configured.");
   const messageId = input.messageId.startsWith("<") ? await findGraphMessageIdByInternetMessageId(input.messageId) : input.messageId;
-  await graphFetch(`/users/${encodeURIComponent(mailbox)}/messages/${encodeURIComponent(messageId)}/reply`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ comment: input.comment }) });
+  const comment = input.comment.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n/g, "<br>");
+  await graphFetch(`/users/${encodeURIComponent(mailbox)}/messages/${encodeURIComponent(messageId)}/reply`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ comment }) });
 }
 
 async function findGraphMessageIdByInternetMessageId(internetMessageId: string) {

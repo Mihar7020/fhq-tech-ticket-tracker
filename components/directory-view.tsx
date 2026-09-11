@@ -13,7 +13,7 @@ export function DirectoryView({ initialPeople, sites }: { initialPeople: Person[
   const [people, setPeople] = useState(initialPeople);
   const [query, setQuery] = useState("");
   const [siteFilter, setSiteFilter] = useState("all");
-  const [tab, setTab] = useState<"people" | "schools" | "history">("people");
+  const [tab, setTab] = useState<"people" | "schools">("people");
   const [addOpen, setAddOpen] = useState(false);
   const { toast } = useApp();
   const filtered = useMemo(() => people.filter((person) => `${person.name} ${person.email} ${person.role}`.toLowerCase().includes(query.toLowerCase()) && (siteFilter === "all" || person.siteId === siteFilter)), [people, query, siteFilter]);
@@ -54,7 +54,7 @@ export function DirectoryView({ initialPeople, sites }: { initialPeople: Person[
       <section className="card overflow-hidden">
         <div className="flex flex-col gap-3 border-b divider p-4 lg:flex-row lg:items-center">
           <div className="flex rounded-lg border divider bg-[var(--ink-3)] p-1">
-            {(["people", "schools", "history"] as const).map((item) => <button key={item} onClick={() => setTab(item)} className={`rounded-md px-3 py-2 text-xs font-bold capitalize ${tab === item ? "accent-fill" : "muted"}`}>{item}</button>)}
+            {(["people", "schools"] as const).map((item) => <button key={item} onClick={() => setTab(item)} className={`rounded-md px-3 py-2 text-xs font-bold capitalize ${tab === item ? "accent-fill" : "muted"}`}>{item}</button>)}
           </div>
           {tab === "people" && (
             <>
@@ -78,7 +78,6 @@ export function DirectoryView({ initialPeople, sites }: { initialPeople: Person[
 
         {tab === "people" && <PeopleTable people={filtered} clearFilters={() => { setQuery(""); setSiteFilter("all"); }} onDelete={async (person) => { if (!window.confirm(`Remove ${person.name} from the directory? Records with ticket history will be deactivated instead.`)) return; const response = await fetch(`/api/people/${person.id}`, { method: "DELETE" }); if (!response.ok) { toast("Could not remove this person"); return; } const result = await response.json() as { action: string }; setPeople((current) => result.action === "deleted" ? current.filter((item) => item.id !== person.id) : current.map((item) => item.id === person.id ? { ...item, active: false } : item)); toast(result.action === "deleted" ? "Person deleted" : "Person deactivated to preserve ticket history"); }} />}
         {tab === "schools" && <SchoolCards sites={sites} people={people} />}
-        {tab === "history" && <HistoryList />}
       </section>
 
       {addOpen && <AddPersonDialog sites={sites} onClose={() => setAddOpen(false)} onCreated={(person) => { setPeople((current) => [...current, person].sort((a, b) => a.name.localeCompare(b.name))); setAddOpen(false); toast("Person added"); }} />}
@@ -155,10 +154,4 @@ function AddPersonDialog({ sites, onClose, onCreated }: { sites: Site[]; onClose
   }
   const field = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
   return <div className="fixed inset-0 z-[100] grid place-items-center bg-black/35 p-4"><form onSubmit={submit} className="card w-full max-w-xl p-5"><div className="mb-5 flex items-center justify-between"><div><p className="label">Directory</p><h2 className="display mt-1 text-2xl">Add person</h2></div><button type="button" onClick={onClose} className="btn icon-btn" aria-label="Close"><X size={16} /></button></div><div className="grid gap-4 sm:grid-cols-2"><label><span className="label mb-2 block">Full name</span><input required className="input" value={form.name} onChange={(event) => field("name", event.target.value)} /></label><label><span className="label mb-2 block">Email</span><input required type="email" className="input" value={form.email} onChange={(event) => field("email", event.target.value)} /></label><label><span className="label mb-2 block">School</span><select className="input" value={form.siteId} onChange={(event) => field("siteId", event.target.value)}>{sites.map((site) => <option key={site.id} value={site.id}>{site.code} - {site.name}</option>)}</select></label><label><span className="label mb-2 block">Role</span><input className="input" value={form.role} onChange={(event) => field("role", event.target.value)} /></label><label><span className="label mb-2 block">Department</span><input className="input" value={form.department} onChange={(event) => field("department", event.target.value)} /></label><label><span className="label mb-2 block">Phone</span><input className="input" value={form.phone} onChange={(event) => field("phone", event.target.value)} /></label></div><div className="mt-5 flex justify-end gap-2"><button type="button" className="btn" onClick={onClose}>Cancel</button><button disabled={saving} className="btn btn-primary">{saving ? "Saving..." : "Add person"}</button></div></form></div>;
-}
-
-function HistoryList() {
-  return (
-    <div className="p-12 text-center"><h2 className="display text-2xl">No directory imports yet</h2><p className="muted mt-2 text-sm">Import history will appear after the first real directory upload.</p></div>
-  );
 }
