@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronDown, Clock3, Copy, KeyRound, Merge, MessageSquareText, Pencil, Plus, Save, Send, StickyNote, Trash2, UserCheck, UserRoundPlus, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Clock3, Copy, Eye, EyeOff, KeyRound, Merge, MessageSquareText, Pencil, Plus, RefreshCw, Save, Send, StickyNote, Trash2, UserCheck, UserRoundPlus, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { SiteBadge } from "@/components/site-badge";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
@@ -34,10 +34,14 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
   const [ccInput, setCcInput] = useState("");
   const [ccList, setCcList] = useState<string[]>([]);
+  const [ccPickerOpen, setCcPickerOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [accountAction, setAccountAction] = useState<"create" | "reset">("create");
-  const [accountName, setAccountName] = useState(initialTicket.requester);
-  const [accountEmail, setAccountEmail] = useState(initialTicket.requesterEmail);
+  const [accountName, setAccountName] = useState("");
+  const [accountEmail, setAccountEmail] = useState("");
+  const [accountPassword, setAccountPassword] = useState("");
+  const [showAccountPassword, setShowAccountPassword] = useState(false);
+  const [forcePasswordChange, setForcePasswordChange] = useState(true);
   const [licenseSkuId, setLicenseSkuId] = useState("");
   const [licenses, setLicenses] = useState<License[]>([]);
   const [licenseLoading, setLicenseLoading] = useState(false);
@@ -57,6 +61,14 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
   const router = useRouter();
   const site = useMemo(() => sites.find((item) => item.id === ticket.siteId), [sites, ticket.siteId]);
   const internalNotes = useMemo(() => timeline.filter((event) => event.internal && event.kind === "note"), [timeline]);
+  const ccSuggestions = useMemo(() => {
+    const query = ccInput.trim().toLowerCase();
+    if (query.length < 2) return [];
+    return people
+      .filter((person) => person.email && (person.name.toLowerCase().includes(query) || person.email.toLowerCase().includes(query)))
+      .filter((person) => person.email.toLowerCase() !== ticket.requesterEmail.toLowerCase() && !ccList.includes(person.email.toLowerCase()))
+      .slice(0, 6);
+  }, [ccInput, ccList, people, ticket.requesterEmail]);
   const currentTechId = currentUserEmail.toLowerCase().startsWith("joseph") ? "joe" : currentUserEmail.toLowerCase().startsWith("rodello") ? "rodello" : currentUserEmail.toLowerCase().startsWith("mihar") ? "mihar" : techs[0]?.id;
 
   async function patchTicket(body: Record<string, unknown>) {
@@ -168,11 +180,32 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
     toast(internal ? "Internal note saved" : result.emailStatus === "failed" ? "Comment saved, but email reply failed" : result.emailStatus === "sent" ? "Comment saved and emailed" : "Public comment added"); setMessage(""); setCcList([]); setCcInput("");
   }
 
-  function addCc() {
-    const email = ccInput.trim().toLowerCase();
+  function addCc(value = ccInput) {
+    const email = value.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast("Enter a valid CC email address"); return; }
     if (email === ticket.requesterEmail.toLowerCase() || ccList.includes(email)) { setCcInput(""); return; }
-    setCcList((current) => [...current, email]); setCcInput("");
+    setCcList((current) => [...current, email]); setCcInput(""); setCcPickerOpen(false);
+  }
+
+  function switchAccountAction(action: "create" | "reset") {
+    setAccountAction(action);
+    setAccountName("");
+    setAccountEmail("");
+    setAccountPassword("");
+    setShowAccountPassword(false);
+    setForcePasswordChange(true);
+    setLicenseSkuId("");
+    setAccountResult(null);
+    setAccountError("");
+  }
+
+  function generateAccountPassword() {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+    const bytes = new Uint8Array(14);
+    crypto.getRandomValues(bytes);
+    const random = Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
+    setAccountPassword(`Fhq!${random}9a`);
+    setShowAccountPassword(true);
   }
 
   async function openMicrosoftAccount() {
@@ -187,10 +220,10 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
   }
 
   async function runMicrosoftAction() {
-    if (accountSaving || !accountEmail.trim() || (accountAction === "create" && !accountName.trim())) return;
+    if (accountSaving || !accountEmail.trim() || !accountPassword || (accountAction === "create" && !accountName.trim())) return;
     if (accountAction === "reset" && !window.confirm(`Reset the Microsoft 365 password for ${accountEmail}?`)) return;
     setAccountSaving(true); setAccountError(""); setAccountResult(null);
-    const response = await fetch(`/api/tickets/${ticket.id}/microsoft-account`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(accountAction === "create" ? { action: "create", displayName: accountName, userPrincipalName: accountEmail, licenseSkuId } : { action: "reset", userPrincipalName: accountEmail }) });
+    const response = await fetch(`/api/tickets/${ticket.id}/microsoft-account`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(accountAction === "create" ? { action: "create", displayName: accountName, userPrincipalName: accountEmail, password: accountPassword, forceChangePasswordNextSignIn: forcePasswordChange, licenseSkuId } : { action: "reset", userPrincipalName: accountEmail, password: accountPassword, forceChangePasswordNextSignIn: forcePasswordChange }) });
     const result = await response.json().catch(() => ({})) as AccountResult & { error?: string; detail?: string };
     setAccountSaving(false);
     if (!response.ok) { setAccountError(result.detail || "Microsoft 365 could not complete this action."); return; }
@@ -377,9 +410,12 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
               {noteMode === "Public comment" ? (
                 <div className="mt-3 rounded-lg border divider bg-[var(--ink-3)]/45 p-3">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                    <label className="min-w-0 flex-1"><span className="label mb-2 block">CC another person</span><input list="ticket-cc-people" className="input" type="email" value={ccInput} onChange={(event) => setCcInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCc(); } }} placeholder="Choose a person or type an email" /></label>
-                    <datalist id="ticket-cc-people">{people.filter((person) => person.email).map((person) => <option key={person.id} value={person.email}>{person.name}</option>)}</datalist>
-                    <button type="button" className="btn" disabled={!ccInput.trim()} onClick={addCc}><Plus size={14} /> Add CC</button>
+                    <div className="relative min-w-0 flex-1">
+                      <label htmlFor="ticket-cc-input" className="label mb-2 block">CC another person</label>
+                      <input id="ticket-cc-input" className="input" type="email" role="combobox" aria-autocomplete="list" aria-expanded={ccPickerOpen && ccSuggestions.length > 0} aria-controls="ticket-cc-suggestions" value={ccInput} onFocus={() => setCcPickerOpen(true)} onBlur={() => setCcPickerOpen(false)} onChange={(event) => { setCcInput(event.target.value); setCcPickerOpen(true); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCc(); } if (event.key === "Escape") setCcPickerOpen(false); }} placeholder="Search a name or type an email" autoComplete="off" />
+                      {ccPickerOpen && ccSuggestions.length ? <div id="ticket-cc-suggestions" role="listbox" className="absolute z-30 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border divider bg-white p-1 shadow-xl">{ccSuggestions.map((person) => <button key={person.id} type="button" role="option" aria-selected="false" className="block w-full rounded-md px-3 py-2 text-left hover:bg-[var(--ink-3)] focus:bg-[var(--ink-3)] focus:outline-none" onMouseDown={(event) => event.preventDefault()} onClick={() => addCc(person.email)}><span className="block truncate text-xs font-bold">{person.name}</span><span className="muted block truncate text-[11px]">{person.email}</span></button>)}</div> : null}
+                    </div>
+                    <button type="button" className="btn" disabled={!ccInput.trim()} onClick={() => addCc()}><Plus size={14} /> Add CC</button>
                   </div>
                   {ccList.length ? <div className="mt-3 flex flex-wrap gap-2">{ccList.map((email) => <span key={email} className="chip gap-2">{email}<button type="button" aria-label={`Remove ${email}`} onClick={() => setCcList((current) => current.filter((item) => item !== email))}><X size={11} /></button></span>)}</div> : <p className="muted mt-2 text-[10px]">Optional. CC recipients receive this update with the requester.</p>}
                 </div>
@@ -499,18 +535,27 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
               </button>
               {accountOpen ? (
                 <div className="border-t divider p-5">
-                  <div className="mb-4 grid grid-cols-2 rounded-lg border divider bg-[var(--ink-3)] p-1">
-                    <button className={`rounded-md px-3 py-2 text-xs font-bold ${accountAction === "create" ? "accent-fill" : "muted"}`} onClick={() => { setAccountAction("create"); setAccountResult(null); setAccountError(""); }}>Create account</button>
-                    <button className={`rounded-md px-3 py-2 text-xs font-bold ${accountAction === "reset" ? "accent-fill" : "muted"}`} onClick={() => { setAccountAction("reset"); setAccountResult(null); setAccountError(""); }}>Reset password</button>
+                  <div className="mb-5 grid grid-cols-2 rounded-lg border divider bg-[var(--ink-3)] p-1">
+                    <button type="button" className={`rounded-md px-3 py-2 text-xs font-bold ${accountAction === "create" ? "accent-fill" : "muted"}`} onClick={() => switchAccountAction("create")}>Create account</button>
+                    <button type="button" className={`rounded-md px-3 py-2 text-xs font-bold ${accountAction === "reset" ? "accent-fill" : "muted"}`} onClick={() => switchAccountAction("reset")}>Reset password</button>
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {accountAction === "create" ? <EditField label="Display name" value={accountName} onChange={setAccountName} /> : null}
                     <EditField label="Microsoft email" type="email" value={accountEmail} onChange={setAccountEmail} />
                     {accountAction === "create" ? <label><span className="label mb-2 block">License</span><select className="input" value={licenseSkuId} onChange={(event) => setLicenseSkuId(event.target.value)} disabled={licenseLoading}><option value="">Create without a license</option>{licenses.map((license) => <option key={license.id} value={license.id} disabled={license.available < 1}>{license.name} · {license.available} available</option>)}</select>{licenseLoading ? <span className="muted mt-1 block text-[10px]">Loading tenant licenses...</span> : null}</label> : null}
-                    <button type="button" className="btn btn-primary w-full" disabled={accountSaving || !accountEmail.trim() || (accountAction === "create" && !accountName.trim())} onClick={() => void runMicrosoftAction()}>{accountAction === "create" ? <UserRoundPlus size={15} /> : <KeyRound size={15} />}{accountSaving ? "Working..." : accountAction === "create" ? "Create Microsoft account" : "Reset password"}</button>
+                    <div>
+                      <span className="label mb-2 block">Temporary password</span>
+                      <div className="flex gap-2">
+                        <div className="relative min-w-0 flex-1"><input className="input pr-10" type={showAccountPassword ? "text" : "password"} value={accountPassword} onChange={(event) => setAccountPassword(event.target.value)} autoComplete="new-password" placeholder="Enter a temporary password" /><button type="button" className="absolute inset-y-0 right-0 grid w-10 place-items-center muted hover:text-[var(--text)]" onClick={() => setShowAccountPassword((current) => !current)} aria-label={showAccountPassword ? "Hide password" : "Show password"}>{showAccountPassword ? <EyeOff size={15} /> : <Eye size={15} />}</button></div>
+                        <button type="button" className="btn shrink-0 px-3" onClick={generateAccountPassword} aria-label="Generate a strong password"><RefreshCw size={14} /><span className="hidden sm:inline">Generate</span></button>
+                      </div>
+                      <p className="muted mt-1.5 text-[10px]">Use a strong password with uppercase, lowercase, numbers, and symbols.</p>
+                    </div>
+                    <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border divider bg-[var(--ink-3)]/45 p-3 text-xs leading-5"><input type="checkbox" className="mt-0.5 h-4 w-4 accent-[var(--teal)]" checked={forcePasswordChange} onChange={(event) => setForcePasswordChange(event.target.checked)} /><span><strong className="block">Require password change at first sign-in</strong><span className="muted">This setting is applied directly to the Microsoft 365 account.</span></span></label>
+                    <button type="button" className="btn btn-primary w-full" disabled={accountSaving || !accountEmail.trim() || !accountPassword || (accountAction === "create" && !accountName.trim())} onClick={() => void runMicrosoftAction()}>{accountAction === "create" ? <UserRoundPlus size={15} /> : <KeyRound size={15} />}{accountSaving ? "Working..." : accountAction === "create" ? "Create Microsoft account" : "Reset password"}</button>
                   </div>
                   {accountError ? <p className="mt-3 break-words text-xs text-[var(--red)]" role="alert">{accountError}</p> : null}
-                  {accountResult ? <div className="mt-4 rounded-lg border border-[color:rgba(111,159,120,.35)] bg-[color:rgba(111,159,120,.10)] p-3" role="status"><p className="text-xs font-bold">Temporary password — shown once</p><p className="mt-2 break-all rounded-md bg-white px-3 py-2 font-mono text-xs">{accountResult.temporaryPassword}</p><button className="btn mt-2 w-full text-xs" onClick={() => { void navigator.clipboard.writeText(accountResult.temporaryPassword); toast("Temporary password copied"); }}><Copy size={13} /> Copy password</button><p className="muted mt-2 text-[10px]">The user must change it at first sign-in. Share it securely.</p></div> : null}
+                  {accountResult ? <div className="mt-4 rounded-lg border border-[color:rgba(111,159,120,.35)] bg-[color:rgba(111,159,120,.10)] p-3" role="status"><p className="text-xs font-bold">Microsoft 365 updated successfully</p><p className="mt-2 break-all rounded-md bg-white px-3 py-2 font-mono text-xs">{accountResult.temporaryPassword}</p><button type="button" className="btn mt-2 w-full text-xs" onClick={() => { void navigator.clipboard.writeText(accountResult.temporaryPassword); toast("Temporary password copied"); }}><Copy size={13} /> Copy password</button><p className="muted mt-2 text-[10px]">{forcePasswordChange ? "The user must change this password at first sign-in." : "The user can continue using this password after signing in."} Share it securely.</p></div> : null}
                 </div>
               ) : null}
             </section>

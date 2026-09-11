@@ -66,9 +66,9 @@ export async function listSubscribedSkus() {
   return (data.value ?? []).map((sku) => ({ id: sku.skuId, name: sku.skuPartNumber, consumed: sku.consumedUnits, available: Math.max(0, (sku.prepaidUnits?.enabled ?? 0) - sku.consumedUnits), status: sku.capabilityStatus ?? "Unknown" }));
 }
 
-export async function createMicrosoftUser(input: { displayName: string; userPrincipalName: string; password: string; licenseSkuId?: string }) {
+export async function createMicrosoftUser(input: { displayName: string; userPrincipalName: string; password: string; forceChangePasswordNextSignIn: boolean; licenseSkuId?: string }) {
   const mailNickname = input.userPrincipalName.split("@")[0].replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 64);
-  const response = await graphFetch("/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accountEnabled: true, displayName: input.displayName, mailNickname, userPrincipalName: input.userPrincipalName, usageLocation: "CA", passwordProfile: { forceChangePasswordNextSignIn: true, password: input.password } }) });
+  const response = await graphFetch("/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accountEnabled: true, displayName: input.displayName, mailNickname, userPrincipalName: input.userPrincipalName, usageLocation: "CA", passwordProfile: { forceChangePasswordNextSignIn: input.forceChangePasswordNextSignIn, password: input.password } }) });
   const user = await response.json() as { id: string; displayName: string; userPrincipalName: string };
   if (input.licenseSkuId) {
     await graphFetch(`/users/${encodeURIComponent(user.id)}/assignLicense`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ addLicenses: [{ skuId: input.licenseSkuId }], removeLicenses: [] }) });
@@ -76,8 +76,8 @@ export async function createMicrosoftUser(input: { displayName: string; userPrin
   return user;
 }
 
-export async function resetMicrosoftPassword(input: { userPrincipalName: string; password: string }) {
-  await graphFetch(`/users/${encodeURIComponent(input.userPrincipalName)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passwordProfile: { forceChangePasswordNextSignIn: true, password: input.password } }) });
+export async function resetMicrosoftPassword(input: { userPrincipalName: string; password: string; forceChangePasswordNextSignIn: boolean }) {
+  await graphFetch(`/users/${encodeURIComponent(input.userPrincipalName)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passwordProfile: { forceChangePasswordNextSignIn: input.forceChangePasswordNextSignIn, password: input.password } }) });
 }
 
 async function findGraphMessageIdByInternetMessageId(internetMessageId: string) {

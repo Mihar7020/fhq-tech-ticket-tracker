@@ -1,17 +1,12 @@
-import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createMicrosoftUser, resetMicrosoftPassword } from "@/lib/email/graph";
 
 const schema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("create"), displayName: z.string().trim().min(2).max(120), userPrincipalName: z.string().trim().toLowerCase().email(), licenseSkuId: z.string().trim().optional() }),
-  z.object({ action: z.literal("reset"), userPrincipalName: z.string().trim().toLowerCase().email() }),
+  z.object({ action: z.literal("create"), displayName: z.string().trim().min(2).max(120), userPrincipalName: z.string().trim().toLowerCase().email(), password: z.string().min(8).max(256), forceChangePasswordNextSignIn: z.boolean().default(true), licenseSkuId: z.string().trim().optional() }),
+  z.object({ action: z.literal("reset"), userPrincipalName: z.string().trim().toLowerCase().email(), password: z.string().min(8).max(256), forceChangePasswordNextSignIn: z.boolean().default(true) }),
 ]);
-
-function temporaryPassword() {
-  return `Fhq!${randomBytes(10).toString("base64url")}9a`;
-}
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -25,14 +20,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   ]);
   if (!ticket) return Response.json({ error: "ticket_not_found" }, { status: 404 });
 
-  const password = temporaryPassword();
+  const password = parsed.data.password;
   try {
     if (parsed.data.action === "create") {
-      const user = await createMicrosoftUser({ displayName: parsed.data.displayName, userPrincipalName: parsed.data.userPrincipalName, password, licenseSkuId: parsed.data.licenseSkuId || undefined });
+      const user = await createMicrosoftUser({ displayName: parsed.data.displayName, userPrincipalName: parsed.data.userPrincipalName, password, forceChangePasswordNextSignIn: parsed.data.forceChangePasswordNextSignIn, licenseSkuId: parsed.data.licenseSkuId || undefined });
       await db.auditLog.create({ data: { entityType: "Ticket", entityId: ticket.id, ticketId: ticket.id, actorId: actor?.id, action: "MICROSOFT_ACCOUNT_CREATED", after: { userPrincipalName: user.userPrincipalName, displayName: user.displayName, licensed: Boolean(parsed.data.licenseSkuId) } } });
       return Response.json({ ok: true, userPrincipalName: user.userPrincipalName, temporaryPassword: password });
     }
-    await resetMicrosoftPassword({ userPrincipalName: parsed.data.userPrincipalName, password });
+    await resetMicrosoftPassword({ userPrincipalName: parsed.data.userPrincipalName, password, forceChangePasswordNextSignIn: parsed.data.forceChangePasswordNextSignIn });
     await db.auditLog.create({ data: { entityType: "Ticket", entityId: ticket.id, ticketId: ticket.id, actorId: actor?.id, action: "MICROSOFT_PASSWORD_RESET", after: { userPrincipalName: parsed.data.userPrincipalName } } });
     return Response.json({ ok: true, userPrincipalName: parsed.data.userPrincipalName, temporaryPassword: password });
   } catch (error) {
