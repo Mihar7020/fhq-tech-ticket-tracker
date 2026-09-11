@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createSessionToken, sessionCookie } from "@/lib/auth";
+import { db } from "@/lib/db";
 import {
   createSessionFromMicrosoft,
   exchangeMicrosoftCode,
@@ -49,9 +50,11 @@ export async function GET(request: NextRequest) {
     const profile = await getMicrosoftProfile(accessToken);
 
     if (!isAllowedStaffEmail(profile.email)) return fail("not_allowed");
+    const account = await db.user.findUnique({ where: { email: profile.email }, select: { id: true, role: true, active: true } });
+    if (!account?.active) return fail("not_allowed");
 
     const response = NextResponse.redirect(dashboardUrl);
-    response.cookies.set(sessionCookie.name, createSessionToken(createSessionFromMicrosoft(profile)), sessionCookie.options);
+    response.cookies.set(sessionCookie.name, createSessionToken(createSessionFromMicrosoft(profile, { id: account.id, role: account.role })), sessionCookie.options);
     response.cookies.delete(microsoftOAuthCookieNames.state);
     response.cookies.delete(microsoftOAuthCookieNames.verifier);
     return response;

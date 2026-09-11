@@ -102,6 +102,7 @@ model User {
   name               String
   role               UserRole          @default(TECH)
   imageUrl           String?
+  signatureHtml      String?
   active             Boolean           @default(true)
   teamId             String?
   team               Team?             @relation(fields: [teamId], references: [id])
@@ -110,10 +111,25 @@ model User {
   auditEvents        AuditLog[]
   primarySites       Site[]             @relation("PrimaryTech")
   digestFeedback     DigestReview[]
+  signatureAssets    SignatureAsset[]
+  knowledgeDocuments KnowledgeDocument[]
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
   @@index([teamId, active])
+}
+
+model SignatureAsset {
+  id          String   @id @default(cuid())
+  filename    String
+  contentType String
+  sizeBytes   Int
+  data        Bytes
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
 }
 
 model Site {
@@ -487,12 +503,29 @@ model KnowledgeArticle {
   fingerprint  String?
   sourceTicketId String?
   sourceTicket Ticket?  @relation(fields: [sourceTicketId], references: [id])
+  documents    KnowledgeDocument[]
   publishedAt  DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   @@index([status, updatedAt(sort: Desc)])
   @@index([fingerprint])
+}
+
+model KnowledgeDocument {
+  id          String            @id @default(cuid())
+  filename    String
+  contentType String
+  sizeBytes   Int
+  data        Bytes
+  articleId   String?
+  article     KnowledgeArticle? @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  uploadedById String
+  uploadedBy  User              @relation(fields: [uploadedById], references: [id])
+  createdAt   DateTime          @default(now())
+
+  @@index([articleId, createdAt(sort: Desc)])
+  @@index([uploadedById, createdAt(sort: Desc)])
 }
 
 model Automation {

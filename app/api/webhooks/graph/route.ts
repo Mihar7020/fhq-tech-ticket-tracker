@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { after } from "next/server";
-import { getMessageMime } from "@/lib/email/graph";
+import { getMessageMetadata, getMessageMime } from "@/lib/email/graph";
 import { ingestMime } from "@/lib/email/ingest";
 import { prismaIngestRepository } from "@/lib/email/prisma-repository";
 import { rateLimit } from "@/lib/rate-limit";
@@ -20,7 +20,8 @@ export async function POST(request: Request) {
   after(async () => {
     await Promise.allSettled(accepted.map(async (messageId) => {
       try {
-        const result = await ingestMime(await getMessageMime(messageId), prismaIngestRepository);
+        const [mime, metadata] = await Promise.all([getMessageMime(messageId), getMessageMetadata(messageId)]);
+        const result = await ingestMime(mime, prismaIngestRepository, { externalThreadId: metadata.conversationId });
         console.log("Graph message ingestion completed", { messageId, result });
         return result;
       } catch (error) {

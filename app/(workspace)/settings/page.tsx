@@ -1,10 +1,15 @@
 import type { Metadata } from "next";
 import { SettingsView } from "@/components/settings-view";
+import { requireSession } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { hasDatabase } from "@/lib/ticket-data";
 export const metadata: Metadata = { title: "Settings" };
-export default function Page() {
+export default async function Page() {
+  const session = await requireSession();
+  const user = hasDatabase() ? await db.user.findUnique({ where: { email: session.email.toLowerCase() }, select: { signatureHtml: true } }) : null;
   return (
     <>
-      <SettingsView />
+      <SettingsView initialSignature={user?.signatureHtml ?? ""} currentUserName={session.name} currentUserEmail={session.email} />
       <section className="page-wrap pt-0">
         <div className="card overflow-hidden p-5">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center">

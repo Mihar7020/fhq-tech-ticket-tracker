@@ -3,19 +3,21 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronDown, Clock3, Merge, MessageSquareText, Pencil, Save, Send, StickyNote, Trash2, UserCheck, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Clock3, Copy, KeyRound, Merge, MessageSquareText, Pencil, Plus, Save, Send, StickyNote, Trash2, UserCheck, UserRoundPlus, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { SiteBadge } from "@/components/site-badge";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
 import { useApp } from "@/components/app-providers";
-import type { Priority, Site, Tech, Ticket, TicketStatus, TimelineEvent } from "@/lib/types";
+import type { Person, Priority, Site, Tech, Ticket, TicketStatus, TimelineEvent } from "@/lib/types";
 
 const statuses: TicketStatus[] = ["New", "Triage", "In progress", "Waiting on staff", "Waiting on IT", "Resolved", "Voided"];
 const priorities: Priority[] = ["Critical", "High", "Normal", "Low"];
 
 type RoutingSuggestion = { id: string; site: { id: string; code: string; name: string } };
+type License = { id: string; name: string; consumed: number; available: number; status: string };
+type AccountResult = { userPrincipalName: string; temporaryPassword: string };
 
-export function TicketDetailView({ initialTicket, initialTimeline, sites, techs, mergeCandidates, currentUserEmail, pendingRoutingSuggestion }: { initialTicket: Ticket; initialTimeline: TimelineEvent[]; sites: Site[]; techs: Tech[]; mergeCandidates: Ticket[]; currentUserEmail: string; pendingRoutingSuggestion: RoutingSuggestion | null }) {
+export function TicketDetailView({ initialTicket, initialTimeline, sites, techs, people, mergeCandidates, currentUserEmail, currentUserRole, pendingRoutingSuggestion }: { initialTicket: Ticket; initialTimeline: TimelineEvent[]; sites: Site[]; techs: Tech[]; people: Person[]; mergeCandidates: Ticket[]; currentUserEmail: string; currentUserRole: string; pendingRoutingSuggestion: RoutingSuggestion | null }) {
   const [ticket, setTicket] = useState(initialTicket);
   const [timeline, setTimeline] = useState(initialTimeline);
   const [noteMode, setNoteMode] = useState<"Public comment" | "Internal note">("Public comment");
@@ -30,6 +32,18 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
   const [routingSuggestion, setRoutingSuggestion] = useState(pendingRoutingSuggestion);
   const [routingAction, setRoutingAction] = useState<"assign" | "dismiss" | null>(null);
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
+  const [ccInput, setCcInput] = useState("");
+  const [ccList, setCcList] = useState<string[]>([]);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [accountAction, setAccountAction] = useState<"create" | "reset">("create");
+  const [accountName, setAccountName] = useState(initialTicket.requester);
+  const [accountEmail, setAccountEmail] = useState(initialTicket.requesterEmail);
+  const [licenseSkuId, setLicenseSkuId] = useState("");
+  const [licenses, setLicenses] = useState<License[]>([]);
+  const [licenseLoading, setLicenseLoading] = useState(false);
+  const [accountSaving, setAccountSaving] = useState(false);
+  const [accountError, setAccountError] = useState("");
+  const [accountResult, setAccountResult] = useState<AccountResult | null>(null);
   const [draft, setDraft] = useState(() => ({
     subject: initialTicket.subject,
     category: initialTicket.category,
@@ -147,11 +161,40 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
   async function addComment() {
     if (!message.trim() || saving) return; setSaving(true);
     const internal = noteMode === "Internal note";
-    const response = await fetch(`/api/tickets/${ticket.id}/comments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: message, internal }) });
+    const response = await fetch(`/api/tickets/${ticket.id}/comments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: message, internal, cc: internal ? [] : ccList }) });
     setSaving(false); if (!response.ok) { toast("Could not save the comment"); return; }
     const result = await response.json() as { id?: string; emailStatus?: "not_attempted" | "sent" | "failed" };
     setTimeline((current) => [...current, { id: result.id ?? `local-${Date.now()}`, kind: internal ? "note" : "email", actor: "You", title: internal ? "Internal note" : "Public comment", body: message, at: "Just now", internal }]);
-    toast(internal ? "Internal note saved" : result.emailStatus === "failed" ? "Comment saved, but email reply failed" : result.emailStatus === "sent" ? "Comment saved and emailed" : "Public comment added"); setMessage("");
+    toast(internal ? "Internal note saved" : result.emailStatus === "failed" ? "Comment saved, but email reply failed" : result.emailStatus === "sent" ? "Comment saved and emailed" : "Public comment added"); setMessage(""); setCcList([]); setCcInput("");
+  }
+
+  function addCc() {
+    const email = ccInput.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast("Enter a valid CC email address"); return; }
+    if (email === ticket.requesterEmail.toLowerCase() || ccList.includes(email)) { setCcInput(""); return; }
+    setCcList((current) => [...current, email]); setCcInput("");
+  }
+
+  async function openMicrosoftAccount() {
+    setAccountOpen((current) => !current); setAccountError(""); setAccountResult(null);
+    if (!accountOpen && !licenses.length) {
+      setLicenseLoading(true);
+      const response = await fetch("/api/microsoft/licenses");
+      const result = await response.json().catch(() => ({})) as { licenses?: License[] };
+      setLicenseLoading(false);
+      if (response.ok) setLicenses(result.licenses ?? []);
+    }
+  }
+
+  async function runMicrosoftAction() {
+    if (accountSaving || !accountEmail.trim() || (accountAction === "create" && !accountName.trim())) return;
+    if (accountAction === "reset" && !window.confirm(`Reset the Microsoft 365 password for ${accountEmail}?`)) return;
+    setAccountSaving(true); setAccountError(""); setAccountResult(null);
+    const response = await fetch(`/api/tickets/${ticket.id}/microsoft-account`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(accountAction === "create" ? { action: "create", displayName: accountName, userPrincipalName: accountEmail, licenseSkuId } : { action: "reset", userPrincipalName: accountEmail }) });
+    const result = await response.json().catch(() => ({})) as AccountResult & { error?: string; detail?: string };
+    setAccountSaving(false);
+    if (!response.ok) { setAccountError(result.detail || "Microsoft 365 could not complete this action."); return; }
+    setAccountResult(result); toast(accountAction === "create" ? "Microsoft 365 account created" : "Password reset complete");
   }
 
   async function deleteInternalNote(noteId: string) {
@@ -331,6 +374,16 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
             <div className="p-5">
               <label htmlFor="message" className="sr-only">{noteMode}</label>
               <textarea id="message" value={message} onChange={(event) => setMessage(event.target.value)} className="input min-h-36 leading-6" placeholder={noteMode === "Public comment" ? "Write an update for the requester..." : "Add an internal troubleshooting note..."} />
+              {noteMode === "Public comment" ? (
+                <div className="mt-3 rounded-lg border divider bg-[var(--ink-3)]/45 p-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                    <label className="min-w-0 flex-1"><span className="label mb-2 block">CC another person</span><input list="ticket-cc-people" className="input" type="email" value={ccInput} onChange={(event) => setCcInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCc(); } }} placeholder="Choose a person or type an email" /></label>
+                    <datalist id="ticket-cc-people">{people.filter((person) => person.email).map((person) => <option key={person.id} value={person.email}>{person.name}</option>)}</datalist>
+                    <button type="button" className="btn" disabled={!ccInput.trim()} onClick={addCc}><Plus size={14} /> Add CC</button>
+                  </div>
+                  {ccList.length ? <div className="mt-3 flex flex-wrap gap-2">{ccList.map((email) => <span key={email} className="chip gap-2">{email}<button type="button" aria-label={`Remove ${email}`} onClick={() => setCcList((current) => current.filter((item) => item !== email))}><X size={11} /></button></span>)}</div> : <p className="muted mt-2 text-[10px]">Optional. CC recipients receive this update with the requester.</p>}
+                </div>
+              ) : null}
               <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
                 <button disabled={!message.trim() || saving} onClick={addComment} className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-40">
                   {noteMode === "Public comment" ? <Send size={15} /> : <Save size={15} />}
@@ -434,7 +487,34 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
             <dl className="mt-5 space-y-3 text-xs">
               <InfoLine label="Role" value={ticket.requesterRole} />
             </dl>
+            {ticket.requesterCc.length ? <div className="mt-4 border-t divider pt-4"><p className="label mb-2">CC on original email</p><div className="flex flex-wrap gap-2">{ticket.requesterCc.map((email) => <span key={email} className="chip">{email}</span>)}</div></div> : null}
           </section>
+
+          {currentUserRole === "ADMIN" ? (
+            <section className="card overflow-hidden">
+              <button type="button" className="flex w-full items-center gap-3 p-5 text-left" onClick={() => void openMicrosoftAccount()} aria-expanded={accountOpen}>
+                <span className="grid h-10 w-10 place-items-center rounded-lg bg-[var(--gold-soft)] text-[var(--gold-bright)]"><UserRoundPlus size={18} /></span>
+                <span className="min-w-0 flex-1"><span className="label block">Admin</span><strong className="mt-1 block">Microsoft 365 account</strong></span>
+                <ChevronDown className={`transition-transform ${accountOpen ? "rotate-180" : ""}`} size={16} />
+              </button>
+              {accountOpen ? (
+                <div className="border-t divider p-5">
+                  <div className="mb-4 grid grid-cols-2 rounded-lg border divider bg-[var(--ink-3)] p-1">
+                    <button className={`rounded-md px-3 py-2 text-xs font-bold ${accountAction === "create" ? "accent-fill" : "muted"}`} onClick={() => { setAccountAction("create"); setAccountResult(null); setAccountError(""); }}>Create account</button>
+                    <button className={`rounded-md px-3 py-2 text-xs font-bold ${accountAction === "reset" ? "accent-fill" : "muted"}`} onClick={() => { setAccountAction("reset"); setAccountResult(null); setAccountError(""); }}>Reset password</button>
+                  </div>
+                  <div className="space-y-3">
+                    {accountAction === "create" ? <EditField label="Display name" value={accountName} onChange={setAccountName} /> : null}
+                    <EditField label="Microsoft email" type="email" value={accountEmail} onChange={setAccountEmail} />
+                    {accountAction === "create" ? <label><span className="label mb-2 block">License</span><select className="input" value={licenseSkuId} onChange={(event) => setLicenseSkuId(event.target.value)} disabled={licenseLoading}><option value="">Create without a license</option>{licenses.map((license) => <option key={license.id} value={license.id} disabled={license.available < 1}>{license.name} · {license.available} available</option>)}</select>{licenseLoading ? <span className="muted mt-1 block text-[10px]">Loading tenant licenses...</span> : null}</label> : null}
+                    <button type="button" className="btn btn-primary w-full" disabled={accountSaving || !accountEmail.trim() || (accountAction === "create" && !accountName.trim())} onClick={() => void runMicrosoftAction()}>{accountAction === "create" ? <UserRoundPlus size={15} /> : <KeyRound size={15} />}{accountSaving ? "Working..." : accountAction === "create" ? "Create Microsoft account" : "Reset password"}</button>
+                  </div>
+                  {accountError ? <p className="mt-3 break-words text-xs text-[var(--red)]" role="alert">{accountError}</p> : null}
+                  {accountResult ? <div className="mt-4 rounded-lg border border-[color:rgba(111,159,120,.35)] bg-[color:rgba(111,159,120,.10)] p-3" role="status"><p className="text-xs font-bold">Temporary password — shown once</p><p className="mt-2 break-all rounded-md bg-white px-3 py-2 font-mono text-xs">{accountResult.temporaryPassword}</p><button className="btn mt-2 w-full text-xs" onClick={() => { void navigator.clipboard.writeText(accountResult.temporaryPassword); toast("Temporary password copied"); }}><Copy size={13} /> Copy password</button><p className="muted mt-2 text-[10px]">The user must change it at first sign-in. Share it securely.</p></div> : null}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
 
           <section className="card p-5">
             <p className="label mb-3">Next action</p>

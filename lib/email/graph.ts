@@ -34,12 +34,50 @@ export async function getMessageMime(messageId: string) {
   return Buffer.from(await response.arrayBuffer());
 }
 
-export async function sendThreadedReply(input: { messageId: string; comment: string }) {
+export async function getMessageMetadata(messageId: string) {
+  const mailbox = process.env.GRAPH_MAILBOX;
+  if (!mailbox) throw new Error("GRAPH_MAILBOX is not configured.");
+  const response = await graphFetch(`/users/${encodeURIComponent(mailbox)}/messages/${encodeURIComponent(messageId)}?$select=conversationId,internetMessageId`);
+  return response.json() as Promise<{ conversationId?: string; internetMessageId?: string }>;
+}
+
+const escapeHtml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+
+export async function sendThreadedReply(input: { messageId: string; comment: string; cc?: string[]; signatureHtml?: string | null }) {
   const mailbox = process.env.GRAPH_MAILBOX;
   if (!mailbox) throw new Error("GRAPH_MAILBOX is not configured.");
   const messageId = input.messageId.startsWith("<") ? await findGraphMessageIdByInternetMessageId(input.messageId) : input.messageId;
-  const comment = input.comment.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n/g, "<br>");
-  await graphFetch(`/users/${encodeURIComponent(mailbox)}/messages/${encodeURIComponent(messageId)}/reply`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ comment }) });
+  const comment = escapeHtml(input.comment).replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n/g, "<br>");
+  const content = `<div>${comment}</div>${input.signatureHtml ? `<div style="margin-top:18px">${input.signatureHtml}</div>` : ""}`;
+  const draftResponse = await graphFetch(`/users/${encodeURIComponent(mailbox)}/messages/${encodeURIComponent(messageId)}/createReply`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: { body: { contentType: "HTML", content }, ...(input.cc?.length ? { ccRecipients: input.cc.map((address) => ({ emailAddress: { address } })) } : {}) } }),
+  });
+  const draft = await draftResponse.json() as { id?: string; internetMessageId?: string; conversationId?: string };
+  if (!draft.id) throw new Error("Microsoft Graph did not return a reply draft ID.");
+  await graphFetch(`/users/${encodeURIComponent(mailbox)}/messages/${encodeURIComponent(draft.id)}/send`, { method: "POST" });
+  return { internetMessageId: draft.internetMessageId, conversationId: draft.conversationId };
+}
+
+export async function listSubscribedSkus() {
+  const response = await graphFetch("/subscribedSkus?$select=skuId,skuPartNumber,consumedUnits,prepaidUnits,capabilityStatus");
+  const data = await response.json() as { value?: Array<{ skuId: string; skuPartNumber: string; consumedUnits: number; capabilityStatus?: string; prepaidUnits?: { enabled?: number } }> };
+  return (data.value ?? []).map((sku) => ({ id: sku.skuId, name: sku.skuPartNumber, consumed: sku.consumedUnits, available: Math.max(0, (sku.prepaidUnits?.enabled ?? 0) - sku.consumedUnits), status: sku.capabilityStatus ?? "Unknown" }));
+}
+
+export async function createMicrosoftUser(input: { displayName: string; userPrincipalName: string; password: string; licenseSkuId?: string }) {
+  const mailNickname = input.userPrincipalName.split("@")[0].replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 64);
+  const response = await graphFetch("/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accountEnabled: true, displayName: input.displayName, mailNickname, userPrincipalName: input.userPrincipalName, usageLocation: "CA", passwordProfile: { forceChangePasswordNextSignIn: true, password: input.password } }) });
+  const user = await response.json() as { id: string; displayName: string; userPrincipalName: string };
+  if (input.licenseSkuId) {
+    await graphFetch(`/users/${encodeURIComponent(user.id)}/assignLicense`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ addLicenses: [{ skuId: input.licenseSkuId }], removeLicenses: [] }) });
+  }
+  return user;
+}
+
+export async function resetMicrosoftPassword(input: { userPrincipalName: string; password: string }) {
+  await graphFetch(`/users/${encodeURIComponent(input.userPrincipalName)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passwordProfile: { forceChangePasswordNextSignIn: true, password: input.password } }) });
 }
 
 async function findGraphMessageIdByInternetMessageId(internetMessageId: string) {

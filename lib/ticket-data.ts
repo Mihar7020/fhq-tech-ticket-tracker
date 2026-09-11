@@ -50,6 +50,7 @@ export function mapTicket(row: TicketRow): Ticket {
     digest: digest?.problemStatement || firstMessage?.textBody || row.subject,
     requester,
     requesterEmail: row.requesterEmailAtIntake,
+    requesterCc: firstMessage?.ccAddresses ?? [],
     requesterRole: row.person?.roleTitle || "Staff",
     siteId: row.siteId ?? undefined,
     status: statusFromDb[row.status] ?? "New",

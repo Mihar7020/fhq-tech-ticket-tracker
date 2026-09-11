@@ -125,12 +125,12 @@ export function isAllowedStaffEmail(email: string) {
   return normalized.endsWith("@fhqtc.net");
 }
 
-export function createSessionFromMicrosoft(profile: MicrosoftProfile): Session {
+export function createSessionFromMicrosoft(profile: MicrosoftProfile, account: { id: string; role: Session["role"] }): Session {
   return {
     email: profile.email,
     expiresAt: Date.now() + 10 * 60 * 60 * 1000,
     name: profile.name,
-    role: "ADMIN",
-    userId: `microsoft:${profile.id}`,
+    role: account.role,
+    userId: account.id,
   };
 }
