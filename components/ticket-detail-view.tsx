@@ -32,7 +32,6 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
   const [draft, setDraft] = useState(() => ({
     subject: initialTicket.subject,
-    summary: initialTicket.digest,
     category: initialTicket.category,
     service: initialTicket.service,
     affected: String(initialTicket.affected),
@@ -123,7 +122,6 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
     setTicket((current) => ({
       ...current,
       subject: draft.subject,
-      digest: draft.summary,
       category: draft.category,
       service: draft.service,
       affected: Number.isFinite(affected) ? affected : current.affected,
@@ -281,7 +279,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <p className="label">Request</p>
-                <h2 className="display mt-1 text-xl">Summary</h2>
+                <h2 className="display mt-1 text-xl">Original request</h2>
               </div>
               <button className="btn text-xs" onClick={() => setEditing((value) => !value)}>{editing ? <X size={14} /> : <Pencil size={14} />}{editing ? "Cancel" : "Edit"}</button>
             </div>
@@ -302,18 +300,16 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
                   <EditField label="Service" value={draft.service} onChange={(value) => setDraft((current) => ({ ...current, service: value }))} />
                   <EditField label="Affected" type="number" value={draft.affected} onChange={(value) => setDraft((current) => ({ ...current, affected: value }))} />
                 </div>
-                <label>
-                  <span className="label mb-2 block">Summary</span>
-                  <textarea className="input min-h-28 leading-6" value={draft.summary} onChange={(event) => setDraft((current) => ({ ...current, summary: event.target.value }))} />
-                </label>
                 <div className="flex justify-end gap-2">
                   <button className="btn" onClick={() => setEditing(false)}>Cancel</button>
-                  <button className="btn btn-primary" disabled={editSaving || !draft.subject.trim() || !draft.summary.trim()} onClick={saveEdits}><Save size={14} /> {editSaving ? "Saving..." : "Save edits"}</button>
+                  <button className="btn btn-primary" disabled={editSaving || !draft.subject.trim()} onClick={saveEdits}><Save size={14} /> {editSaving ? "Saving..." : "Save edits"}</button>
                 </div>
               </div>
             ) : (
               <>
-                <p className="text-base leading-7">{ticket.digest}</p>
+                <div className="rounded-lg border divider bg-[var(--ink-3)]/45 p-4">
+                  <p className="whitespace-pre-wrap text-sm leading-7">{ticket.originalEmail}</p>
+                </div>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <InfoTile label="Category" value={ticket.category} />
                   <InfoTile label="Service" value={ticket.service} />
@@ -321,10 +317,6 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
                 </div>
               </>
             )}
-            <div className="mt-5 rounded-lg border divider bg-[var(--ink-3)]/45 p-4">
-              <p className="label mb-2">Original request</p>
-              <p className="whitespace-pre-wrap text-sm leading-7">{ticket.originalEmail}</p>
-            </div>
           </section>
 
           <section className="card overflow-hidden">
