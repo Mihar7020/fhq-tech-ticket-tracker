@@ -562,3 +562,20 @@ model AuditLog {
   @@index([ticketId, createdAt])
   @@index([actorId, createdAt(sort: Desc)])
 }
+
+model MailIngestionEvent {
+  id                String   @id @default(cuid())
+  source            String
+  graphMessageId    String?
+  internetMessageId String?
+  outcome           String
+  reason            String?
+  error             String?
+  ticketId          String?
+  publicId          String?
+  createdAt         DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@index([graphMessageId])
+  @@index([outcome, createdAt(sort: Desc)])
+}

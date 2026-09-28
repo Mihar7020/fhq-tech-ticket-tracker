@@ -41,9 +41,28 @@ export async function getMessageMetadata(messageId: string) {
   return response.json() as Promise<{ conversationId?: string; internetMessageId?: string }>;
 }
 
+export type InboxMessageSummary = { id: string; internetMessageId?: string; conversationId?: string; receivedDateTime: string; subject?: string };
+
+/** Lists Inbox messages received since `since`, newest first, following @odata.nextLink up to `limit`. */
+export async function listInboxMessagesSince(since: Date, limit = 500) {
+  const mailbox = process.env.GRAPH_MAILBOX;
+  if (!mailbox) throw new Error("GRAPH_MAILBOX is not configured.");
+  const params = new URLSearchParams({ $filter: `receivedDateTime ge ${since.toISOString()}`, $select: "id,internetMessageId,conversationId,receivedDateTime,subject", $orderby: "receivedDateTime desc", $top: "50" });
+  let path: string | undefined = `/users/${encodeURIComponent(mailbox)}/mailFolders('Inbox')/messages?${params.toString()}`;
+  const results: InboxMessageSummary[] = [];
+  while (path && results.length < limit) {
+    const response = await graphFetch(path);
+    const page = await response.json() as { value?: InboxMessageSummary[]; "@odata.nextLink"?: string };
+    results.push(...(page.value ?? []));
+    const next = page["@odata.nextLink"];
+    path = next ? next.replace(GRAPH_ROOT, "") : undefined;
+  }
+  return results.slice(0, limit);
+}
+
 const escapeHtml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 
-export async function sendThreadedReply(input: { messageId: string; comment: string; cc?: string[]; signatureHtml?: string | null }) {
+export async function sendThreadedReply(input: { messageId: string; comment: string; cc?: string[]; signatureHtml?: string | null; subject?: string }) {
   const mailbox = process.env.GRAPH_MAILBOX;
   if (!mailbox) throw new Error("GRAPH_MAILBOX is not configured.");
   const messageId = input.messageId.startsWith("<") ? await findGraphMessageIdByInternetMessageId(input.messageId) : input.messageId;
@@ -52,7 +71,7 @@ export async function sendThreadedReply(input: { messageId: string; comment: str
   const draftResponse = await graphFetch(`/users/${encodeURIComponent(mailbox)}/messages/${encodeURIComponent(messageId)}/createReply`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: { body: { contentType: "HTML", content }, ...(input.cc?.length ? { ccRecipients: input.cc.map((address) => ({ emailAddress: { address } })) } : {}) } }),
+    body: JSON.stringify({ message: { body: { contentType: "HTML", content }, ...(input.subject ? { subject: input.subject } : {}), ...(input.cc?.length ? { ccRecipients: input.cc.map((address) => ({ emailAddress: { address } })) } : {}) } }),
   });
   const draft = await draftResponse.json() as { id?: string; internetMessageId?: string; conversationId?: string };
   if (!draft.id) throw new Error("Microsoft Graph did not return a reply draft ID.");

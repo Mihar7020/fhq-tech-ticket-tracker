@@ -106,7 +106,7 @@ npx prisma db seed
 npm run dev
 ```
 
-Development login: `mihar@fhqtc.net` / `fhqtechdemo`. The demo password path is disabled automatically when `NODE_ENV=production` unless the test-only `ALLOW_DEMO_AUTH=true` flag is explicitly set; production identity must be backed by Entra ID.
+Development login: `mihar.kathiriya@fhqtc.net` / `fhqtechdemo`. The demo password path is disabled automatically when `NODE_ENV=production` unless the test-only `ALLOW_DEMO_AUTH=true` flag is explicitly set; production identity must be backed by Entra ID.
 
 Graph setup:
 

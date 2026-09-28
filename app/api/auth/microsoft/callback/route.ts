@@ -50,8 +50,14 @@ export async function GET(request: NextRequest) {
     const profile = await getMicrosoftProfile(accessToken);
 
     if (!isAllowedStaffEmail(profile.email)) return fail("not_allowed");
-    const account = await db.user.findUnique({ where: { email: profile.email }, select: { id: true, role: true, active: true } });
-    if (!account?.active) return fail("not_allowed");
+    // Case-insensitive lookup; allowlisted staff without a row are provisioned instead of locked out.
+    // (Seeded emails like joseph.gallenger@ vs allowlisted joe@ previously blocked sign-in entirely.)
+    const found = await db.user.findFirst({ where: { email: { equals: profile.email, mode: "insensitive" } }, select: { id: true, role: true, active: true } });
+    if (found && !found.active) return fail("not_allowed");
+    const explicitlyAllowed = (process.env.AUTH_ALLOWED_EMAILS || process.env.IT_ALLOWED_EMAILS || "").split(",").map((entry) => entry.trim().toLowerCase()).includes(profile.email.toLowerCase());
+    if (!found && !explicitlyAllowed) return fail("not_allowed");
+    const team = found ? null : await db.team.findUnique({ where: { slug: "fhq-tech" }, select: { id: true } });
+    const account = found ?? await db.user.create({ data: { email: profile.email, name: profile.name, role: "ADMIN", active: true, teamId: team?.id }, select: { id: true, role: true, active: true } });
 
     const response = NextResponse.redirect(dashboardUrl);
     response.cookies.set(sessionCookie.name, createSessionToken(createSessionFromMicrosoft(profile, { id: account.id, role: account.role })), sessionCookie.options);
