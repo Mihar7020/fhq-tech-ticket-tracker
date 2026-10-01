@@ -26,16 +26,13 @@ const ticketInclude = {
 } satisfies Prisma.TicketInclude;
 
 type TicketRow = Prisma.TicketGetPayload<{ include: typeof ticketInclude }>;
-const DISPLAY_TIME_ZONE = "America/Regina";
 
 function relative(date: Date) {
   const minutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60_000));
   if (minutes < 1) return "Just now";
   if (minutes < 60) return `${minutes}m ago`;
   if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
-  const currentYear = new Date().toLocaleDateString("en-CA", { timeZone: DISPLAY_TIME_ZONE, year: "numeric" });
-  const dateYear = date.toLocaleDateString("en-CA", { timeZone: DISPLAY_TIME_ZONE, year: "numeric" });
-  return date.toLocaleDateString("en-CA", { timeZone: DISPLAY_TIME_ZONE, month: "short", day: "numeric", year: dateYear === currentYear ? undefined : "numeric" });
+  return date.toLocaleDateString("en-CA", { month: "short", day: "numeric", year: date.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
 }
 
 export function mapTicket(row: TicketRow): Ticket {
@@ -50,7 +47,6 @@ export function mapTicket(row: TicketRow): Ticket {
     digest: digest?.problemStatement || firstMessage?.textBody || row.subject,
     requester,
     requesterEmail: row.requesterEmailAtIntake,
-    requesterCc: firstMessage?.ccAddresses ?? [],
     requesterRole: row.person?.roleTitle || "Staff",
     siteId: row.siteId ?? undefined,
     status: statusFromDb[row.status] ?? "New",
@@ -58,7 +54,7 @@ export function mapTicket(row: TicketRow): Ticket {
     assignee: row.assignee?.name,
     category: row.category || "Uncategorized",
     service: row.affectedService || "General IT",
-    createdAt: row.createdAt.toLocaleString("en-CA", { timeZone: DISPLAY_TIME_ZONE, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }),
+    createdAt: row.createdAt.toLocaleString("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }),
     updatedAt: relative(row.updatedAt),
     doomMinutes: minutes,
     doomRisk: Math.round((row.predictedBreachRisk ?? 0) * 100),

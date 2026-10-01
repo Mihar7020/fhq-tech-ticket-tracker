@@ -10,7 +10,7 @@ export function GET(request: NextRequest) {
 
   const token = createSessionToken({
     userId: "demo-admin",
-    email: "mihar.kathiriya@fhqtc.net",
+    email: "mihar@fhqtc.net",
     name: "Mihar Kathiriya",
     role: "ADMIN",
     expiresAt: Date.now() + sessionCookie.options.maxAge * 1000,

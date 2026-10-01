@@ -26,10 +26,10 @@ async function main() {
   ]);
   const team = await prisma.team.create({ data: { name: "FHQ Tech", slug: "fhq-tech" } });
   const users = await Promise.all([
-    ["Mihar Kathiriya", "mihar.kathiriya@fhqtc.net", ["SB", "OLC"]],
-    ["Rodello Manalastas", "rodello.manalastas@fhqtc.net", ["PVL", "LSS"]],
-    ["Joe Gallenger", "joe.gallenger@fhqtc.net", ["MUSK", "CPS"]],
-  ].map(async ([name, email]) => prisma.user.create({ data: { name: name as string, email: email as string, role: "ADMIN", teamId: team.id } })));
+    ["Mihar Kathiriya", "mihar@fhqtc.net", ["SB", "OLC"]],
+    ["Rodello Racelis", "rodello@fhqtc.net", ["PVL", "LSS"]],
+    ["Joe Daniels", "joe@fhqtc.net", ["MUSK", "CPS"]],
+  ].map(async ([name, email], index) => prisma.user.create({ data: { name: name as string, email: email as string, role: index === 0 ? "ADMIN" : "TECH", teamId: team.id } })));
   const sites = await Promise.all(siteSeeds.map((seed, index) => prisma.site.create({ data: { name: seed[0], code: seed[1], color: seed[2], address: `${seed[0]} campus`, mailDomains: [seed[3]], primaryTechId: users[index % users.length].id, bellSchedule: { start: "09:00", lunch: "12:00", end: "15:20" } } })));
   const people = [];
   for (let index = 0; index < 60; index += 1) {

@@ -3,9 +3,9 @@ import { PrismaClient, UserRole } from "@prisma/client";
 const prisma = new PrismaClient();
 
 const technicians = [
-  { id: "mihar", name: "Mihar Kathiriya", email: "mihar.kathiriya@fhqtc.net", role: UserRole.ADMIN },
-  { id: "joe", name: "Joe Gallenger", email: "joe.gallenger@fhqtc.net", role: UserRole.ADMIN },
-  { id: "rodello", name: "Rodello Manalastas", email: "rodello.manalastas@fhqtc.net", role: UserRole.ADMIN },
+  { id: "mihar", name: "Mihar Kathiriya", email: "mihar@fhqtc.net", role: UserRole.ADMIN },
+  { id: "joe", name: "Joe Gallenger", email: "joseph.gallenger@fhqtc.net", role: UserRole.TECH },
+  { id: "rodello", name: "Rodello Manalastas", email: "rodello.manalastas@fhqtc.net", role: UserRole.TECH },
 ] as const;
 
 const schools = [
@@ -25,10 +25,9 @@ async function main() {
   });
 
   for (const technician of technicians) {
-    // Upsert by stable id so rows created with older email variants get corrected, not duplicated.
     await prisma.user.upsert({
-      where: { id: technician.id },
-      update: { name: technician.name, email: technician.email, role: technician.role, active: true, teamId: team.id },
+      where: { email: technician.email },
+      update: { name: technician.name, role: technician.role, active: true, teamId: team.id },
       create: { ...technician, active: true, teamId: team.id },
     });
   }

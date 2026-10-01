@@ -3,7 +3,7 @@ import path from "node:path";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/login");
-  await page.getByLabel("Work email").fill("mihar.kathiriya@fhqtc.net");
+  await page.getByLabel("Work email").fill("mihar@fhqtc.net");
   await page.getByLabel("Password").fill("fhqtechdemo");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/dashboard/);

@@ -27,7 +27,6 @@ export const people: Person[] = [
 const ticket = (partial: Partial<Ticket> & Pick<Ticket, "id" | "number" | "subject" | "siteId" | "requester" | "status" | "priority" | "doomMinutes">): Ticket => ({
   digest: partial.subject,
   requesterEmail: "staff@fhqtc.net",
-  requesterCc: [],
   requesterRole: "Teacher",
   assignee: undefined,
   category: "Classroom technology",

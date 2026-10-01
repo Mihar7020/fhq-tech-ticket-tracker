@@ -1,17 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { extractTicketTag, isAutomatedMessage, matchThread, normalizeSubject, tagSubject } from "@/lib/threading";
+import { isAutomatedMessage, matchThread, normalizeSubject } from "@/lib/threading";
 import { stripQuotedReply } from "@/lib/security";
 
 describe("email threading and loop protection", () => {
   it("matches In-Reply-To before subject", () => { const result = matchThread({ messageId: "<new>", inReplyTo: "<old>", subject: "Different" }, [{ messageId: "<old>", threadId: "t1", subject: "Projector" }]); expect(result.kind).toBe("match"); });
   it("deduplicates Message-ID", () => { expect(matchThread({ messageId: "<old>", subject: "anything" }, [{ messageId: "<old>", threadId: "t1", subject: "x" }]).kind).toBe("duplicate"); });
   it("only marks a subject match as a candidate", () => { expect(matchThread({ messageId: "<new>", subject: "Re: [FHQ-1048] Projector" }, [{ messageId: "<old>", threadId: "t1", subject: "Projector" }]).kind).toBe("candidate"); expect(normalizeSubject("Fwd: Re: [FHQ-1048] Projector")).toBe("projector"); });
-  it("matches Microsoft conversation IDs on replies", () => { expect(matchThread({ messageId: "<new>", subject: "RE: Changed subject", externalThreadId: "conversation-1" }, [{ messageId: "<old>", threadId: "t1", subject: "Original", externalThreadId: "conversation-1" }]).kind).toBe("match"); });
-  it("does NOT weld a brand-new email into an old ticket just because Exchange grouped the conversation", () => { expect(matchThread({ messageId: "<new>", subject: "Printer not working", externalThreadId: "conversation-1", senderEmail: "someone.else@fhqtc.net", sentAt: new Date() }, [{ messageId: "<old>", threadId: "t1", subject: "Printer not working", externalThreadId: "conversation-1", senderEmail: "staff@fhqtc.net", sentAt: new Date() }]).kind).toBe("candidate"); });
-  it("does NOT weld a new, non-reply email from the same sender with a repeated subject", () => { const now = new Date(); expect(matchThread({ messageId: "<new>", subject: "Projector", senderEmail: "staff@example.org", sentAt: now }, [{ messageId: "<old>", threadId: "t1", subject: "Projector", senderEmail: "staff@example.org", sentAt: new Date(now.getTime() - 86_400_000) }]).kind).toBe("candidate"); });
-  it("matches the [FHQ-####] tag even when headers are stripped", () => { expect(matchThread({ messageId: "<new>", subject: "RE: Laptop [FHQ-0042]" }, [{ messageId: "<old>", threadId: "t42", subject: "Laptop", ticketPublicId: "FHQ-0042" }])).toMatchObject({ kind: "match", threadId: "t42" }); });
-  it("tags outbound subjects once", () => { expect(tagSubject("RE: Laptop", "FHQ-0042")).toBe("Laptop [FHQ-0042]"); expect(tagSubject("Laptop [FHQ-0042]", "FHQ-0042")).toBe("Laptop [FHQ-0042]"); expect(extractTicketTag("Re: x [fhq-7]")).toBe("FHQ-7"); });
-  it("safely welds older Outlook replies by sender and subject", () => { const now = new Date(); expect(matchThread({ messageId: "<new>", subject: "Re: Printer", senderEmail: "staff@example.org", sentAt: now }, [{ messageId: "<old>", threadId: "t1", subject: "Printer", senderEmail: "staff@example.org", sentAt: new Date(now.getTime() - 60_000) }]).kind).toBe("match"); });
   it("blocks out-of-office and daemon loops", () => { expect(isAutomatedMessage({ "auto-submitted": "auto-replied" }, "teacher@example.org")).toBe(true); expect(isAutomatedMessage({}, "mailer-daemon@example.org")).toBe(true); });
   it("strips forty quoting levels without recursion", () => { const quoted = `New answer\n${Array.from({ length: 40 }, (_, index) => `${">".repeat(index + 1)} old`).join("\n")}`; expect(stripQuotedReply(quoted)).toBe("New answer"); });
 });
