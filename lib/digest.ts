@@ -13,6 +13,19 @@ export type DigestExtraction = {
 };
 
 const devices = ["projector", "chromebook", "printer", "smart board", "wifi", "wi-fi", "powerschool", "teams", "laptop"];
+const maxSummaryWords = 18;
+const instructionLeakPattern = /\b(we need to|the email|source material|constraints?|thinking process|requested outcome|do not invent|maximum \d+ words|return only|summary should)\b/i;
+
+function cleanAiSummary(value: string) {
+  const firstLine = value.replace(/\r/g, "").split("\n").map((line) => line.trim()).find(Boolean) ?? "";
+  const withoutLabel = firstLine.replace(/^(summary|ticket summary|final summary)\s*:\s*/i, "").trim();
+  if (!withoutLabel || instructionLeakPattern.test(withoutLabel)) return null;
+  const firstSentence = withoutLabel.match(/^.+?(?:[.!?](?=\s|$)|$)/)?.[0]?.trim() ?? withoutLabel;
+  if (instructionLeakPattern.test(firstSentence)) return null;
+  const words = firstSentence.split(/\s+/).filter(Boolean);
+  const capped = words.slice(0, maxSummaryWords).join(" ").replace(/[,"']+$/, "").trim();
+  return capped || null;
+}
 
 export async function generateAiSummary(text: string): Promise<string | null> {
   const apiKey = process.env.OPENROUTER_API_KEY?.trim();
@@ -33,9 +46,9 @@ export async function generateAiSummary(text: string): Promise<string | null> {
       body: JSON.stringify({
         model,
         temperature: 0.2,
-        max_tokens: 50,
+        max_tokens: 35,
         messages: [
-          { role: "system", content: "Write one short IT helpdesk ticket summary, maximum 18 words. State only the core issue. Do not add a requested outcome unless the email explicitly asks for one. Return only the summary text." },
+          { role: "system", content: "Return only one short IT ticket summary, maximum 18 words. No reasoning, labels, markdown, quotes, or explanation. State only the core issue." },
           { role: "user", content: text },
         ],
       }),
@@ -48,8 +61,13 @@ export async function generateAiSummary(text: string): Promise<string | null> {
     const result = await response.json() as { choices?: { message?: { content?: unknown } }[] };
     const summary = result.choices?.[0]?.message?.content;
     if (typeof summary === "string" && summary.trim()) {
-      console.log("[ai-summary] used", { model });
-      return summary.trim();
+      const cleaned = cleanAiSummary(summary);
+      if (cleaned) {
+        console.log("[ai-summary] used", { model });
+        return cleaned;
+      }
+      console.log("[ai-summary] skipped: unusable model response", { model });
+      return null;
     }
     console.log("[ai-summary] skipped: empty model response", { model });
     return null;

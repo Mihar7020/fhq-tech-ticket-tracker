@@ -48,6 +48,7 @@ export type Ticket = {
   digest: string;
   requester: string;
   requesterEmail: string;
+  requesterCc: string[];
   requesterRole: string;
   siteId?: string;
   room?: string;

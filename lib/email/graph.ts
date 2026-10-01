@@ -34,11 +34,23 @@ export async function getMessageMime(messageId: string) {
   return Buffer.from(await response.arrayBuffer());
 }
 
-export async function sendThreadedReply(input: { messageId: string; comment: string }) {
+const escapeHtml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+
+// Uses Graph's one-step /reply (the method that has always worked here). The signature is
+// appended to the comment HTML; CC goes in `message`, which /reply accepts alongside `comment`
+// as long as `message.body` is not also set.
+export async function sendThreadedReply(input: { messageId: string; comment: string; cc?: string[]; signatureHtml?: string | null }) {
   const mailbox = process.env.GRAPH_MAILBOX;
   if (!mailbox) throw new Error("GRAPH_MAILBOX is not configured.");
   const messageId = input.messageId.startsWith("<") ? await findGraphMessageIdByInternetMessageId(input.messageId) : input.messageId;
-  await graphFetch(`/users/${encodeURIComponent(mailbox)}/messages/${encodeURIComponent(messageId)}/reply`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ comment: input.comment }) });
+  const text = escapeHtml(input.comment).replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n/g, "<br>");
+  const comment = `<div>${text}</div>${input.signatureHtml ? `<div style="margin-top:18px">${input.signatureHtml}</div>` : ""}`;
+  const cc = (input.cc ?? []).filter(Boolean);
+  await graphFetch(`/users/${encodeURIComponent(mailbox)}/messages/${encodeURIComponent(messageId)}/reply`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ comment, ...(cc.length ? { message: { ccRecipients: cc.map((address) => ({ emailAddress: { address } })) } } : {}) }),
+  });
 }
 
 async function findGraphMessageIdByInternetMessageId(internetMessageId: string) {

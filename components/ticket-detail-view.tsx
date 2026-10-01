@@ -3,19 +3,19 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronDown, Clock3, Merge, MessageSquareText, Pencil, Save, Send, StickyNote, Trash2, UserCheck, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Clock3, Merge, MessageSquareText, Pencil, Plus, Save, Send, StickyNote, Trash2, UserCheck, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { SiteBadge } from "@/components/site-badge";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
 import { useApp } from "@/components/app-providers";
-import type { Priority, Site, Tech, Ticket, TicketStatus, TimelineEvent } from "@/lib/types";
+import type { Person, Priority, Site, Tech, Ticket, TicketStatus, TimelineEvent } from "@/lib/types";
 
 const statuses: TicketStatus[] = ["New", "Triage", "In progress", "Waiting on staff", "Waiting on IT", "Resolved", "Voided"];
 const priorities: Priority[] = ["Critical", "High", "Normal", "Low"];
 
 type RoutingSuggestion = { id: string; site: { id: string; code: string; name: string } };
 
-export function TicketDetailView({ initialTicket, initialTimeline, sites, techs, mergeCandidates, currentUserEmail, pendingRoutingSuggestion }: { initialTicket: Ticket; initialTimeline: TimelineEvent[]; sites: Site[]; techs: Tech[]; mergeCandidates: Ticket[]; currentUserEmail: string; pendingRoutingSuggestion: RoutingSuggestion | null }) {
+export function TicketDetailView({ initialTicket, initialTimeline, sites, techs, people, mergeCandidates, currentUserEmail, pendingRoutingSuggestion }: { initialTicket: Ticket; initialTimeline: TimelineEvent[]; sites: Site[]; techs: Tech[]; people: Person[]; mergeCandidates: Ticket[]; currentUserEmail: string; currentUserRole: string; pendingRoutingSuggestion: RoutingSuggestion | null }) {
   const [ticket, setTicket] = useState(initialTicket);
   const [timeline, setTimeline] = useState(initialTimeline);
   const [noteMode, setNoteMode] = useState<"Public comment" | "Internal note">("Public comment");
@@ -30,9 +30,10 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
   const [routingSuggestion, setRoutingSuggestion] = useState(pendingRoutingSuggestion);
   const [routingAction, setRoutingAction] = useState<"assign" | "dismiss" | null>(null);
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
+  const [ccInput, setCcInput] = useState("");
+  const [ccList, setCcList] = useState<string[]>([]);
   const [draft, setDraft] = useState(() => ({
     subject: initialTicket.subject,
-    summary: initialTicket.digest,
     category: initialTicket.category,
     service: initialTicket.service,
     affected: String(initialTicket.affected),
@@ -123,7 +124,6 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
     setTicket((current) => ({
       ...current,
       subject: draft.subject,
-      digest: draft.summary,
       category: draft.category,
       service: draft.service,
       affected: Number.isFinite(affected) ? affected : current.affected,
@@ -149,11 +149,18 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
   async function addComment() {
     if (!message.trim() || saving) return; setSaving(true);
     const internal = noteMode === "Internal note";
-    const response = await fetch(`/api/tickets/${ticket.id}/comments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: message, internal }) });
+    const response = await fetch(`/api/tickets/${ticket.id}/comments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: message, internal, cc: internal ? [] : ccList }) });
     setSaving(false); if (!response.ok) { toast("Could not save the comment"); return; }
     const result = await response.json() as { id?: string; emailStatus?: "not_attempted" | "sent" | "failed" };
     setTimeline((current) => [...current, { id: result.id ?? `local-${Date.now()}`, kind: internal ? "note" : "email", actor: "You", title: internal ? "Internal note" : "Public comment", body: message, at: "Just now", internal }]);
-    toast(internal ? "Internal note saved" : result.emailStatus === "failed" ? "Comment saved, but email reply failed" : result.emailStatus === "sent" ? "Comment saved and emailed" : "Public comment added"); setMessage("");
+    toast(internal ? "Internal note saved" : result.emailStatus === "failed" ? "Comment saved, but email reply failed" : result.emailStatus === "sent" ? "Comment saved and emailed" : "Public comment added"); setMessage(""); setCcList([]); setCcInput("");
+  }
+
+  function addCc() {
+    const email = ccInput.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast("Enter a valid CC email address"); return; }
+    if (email === ticket.requesterEmail.toLowerCase() || ccList.includes(email)) { setCcInput(""); return; }
+    setCcList((current) => [...current, email]); setCcInput("");
   }
 
   async function deleteInternalNote(noteId: string) {
@@ -281,7 +288,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <p className="label">Request</p>
-                <h2 className="display mt-1 text-xl">Summary</h2>
+                <h2 className="display mt-1 text-xl">Original request</h2>
               </div>
               <button className="btn text-xs" onClick={() => setEditing((value) => !value)}>{editing ? <X size={14} /> : <Pencil size={14} />}{editing ? "Cancel" : "Edit"}</button>
             </div>
@@ -302,18 +309,16 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
                   <EditField label="Service" value={draft.service} onChange={(value) => setDraft((current) => ({ ...current, service: value }))} />
                   <EditField label="Affected" type="number" value={draft.affected} onChange={(value) => setDraft((current) => ({ ...current, affected: value }))} />
                 </div>
-                <label>
-                  <span className="label mb-2 block">Summary</span>
-                  <textarea className="input min-h-28 leading-6" value={draft.summary} onChange={(event) => setDraft((current) => ({ ...current, summary: event.target.value }))} />
-                </label>
                 <div className="flex justify-end gap-2">
                   <button className="btn" onClick={() => setEditing(false)}>Cancel</button>
-                  <button className="btn btn-primary" disabled={editSaving || !draft.subject.trim() || !draft.summary.trim()} onClick={saveEdits}><Save size={14} /> {editSaving ? "Saving..." : "Save edits"}</button>
+                  <button className="btn btn-primary" disabled={editSaving || !draft.subject.trim()} onClick={saveEdits}><Save size={14} /> {editSaving ? "Saving..." : "Save edits"}</button>
                 </div>
               </div>
             ) : (
               <>
-                <p className="text-base leading-7">{ticket.digest}</p>
+                <div className="rounded-lg border divider bg-[var(--ink-3)]/45 p-4">
+                  <p className="whitespace-pre-wrap text-sm leading-7">{ticket.originalEmail}</p>
+                </div>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <InfoTile label="Category" value={ticket.category} />
                   <InfoTile label="Service" value={ticket.service} />
@@ -321,10 +326,6 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
                 </div>
               </>
             )}
-            <div className="mt-5 rounded-lg border divider bg-[var(--ink-3)]/45 p-4">
-              <p className="label mb-2">Original request</p>
-              <p className="whitespace-pre-wrap text-sm leading-7">{ticket.originalEmail}</p>
-            </div>
           </section>
 
           <section className="card overflow-hidden">
@@ -339,6 +340,16 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
             <div className="p-5">
               <label htmlFor="message" className="sr-only">{noteMode}</label>
               <textarea id="message" value={message} onChange={(event) => setMessage(event.target.value)} className="input min-h-36 leading-6" placeholder={noteMode === "Public comment" ? "Write an update for the requester..." : "Add an internal troubleshooting note..."} />
+              {noteMode === "Public comment" ? (
+                <div className="mt-3 rounded-lg border divider bg-[var(--ink-3)]/45 p-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                    <label className="min-w-0 flex-1"><span className="label mb-2 block">CC another person</span><input list="ticket-cc-people" className="input" type="email" value={ccInput} onChange={(event) => setCcInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCc(); } }} placeholder="Choose a person or type an email" /></label>
+                    <datalist id="ticket-cc-people">{people.filter((person) => person.email).map((person) => <option key={person.id} value={person.email}>{person.name}</option>)}</datalist>
+                    <button type="button" className="btn" disabled={!ccInput.trim()} onClick={addCc}><Plus size={14} /> Add CC</button>
+                  </div>
+                  {ccList.length ? <div className="mt-3 flex flex-wrap gap-2">{ccList.map((email) => <span key={email} className="chip gap-2">{email}<button type="button" aria-label={`Remove ${email}`} onClick={() => setCcList((current) => current.filter((item) => item !== email))}><X size={11} /></button></span>)}</div> : <p className="muted mt-2 text-[10px]">Optional. CC recipients receive this update with the requester.</p>}
+                </div>
+              ) : null}
               <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
                 <button disabled={!message.trim() || saving} onClick={addComment} className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-40">
                   {noteMode === "Public comment" ? <Send size={15} /> : <Save size={15} />}
@@ -442,6 +453,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
             <dl className="mt-5 space-y-3 text-xs">
               <InfoLine label="Role" value={ticket.requesterRole} />
             </dl>
+            {ticket.requesterCc.length ? <div className="mt-4 border-t divider pt-4"><p className="label mb-2">CC on original email</p><div className="flex flex-wrap gap-2">{ticket.requesterCc.map((email) => <span key={email} className="chip">{email}</span>)}</div></div> : null}
           </section>
 
           <section className="card p-5">
