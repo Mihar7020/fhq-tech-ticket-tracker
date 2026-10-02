@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { EyeTracker } from "@/components/eye-tracker";
 import { BarChart3, BookOpen, Command, Gauge, Inbox, Map, Plus, Settings, ShieldAlert, Users } from "lucide-react";
 import clsx from "clsx";
 import { CommandPalette } from "@/components/command-palette";
@@ -84,7 +83,7 @@ export function AppShell({ children, session, counts }: { children: React.ReactN
           <kbd className="rounded border divider px-1.5 py-0.5 text-[10px]">Ctrl K</kbd>
         </button>
 
-        <nav aria-label="Main navigation" className="min-h-0 shrink space-y-6 overflow-y-auto">
+        <nav aria-label="Main navigation" className="flex-1 space-y-6 overflow-y-auto">
           <div>
             <p className="label mb-2 px-3">Work</p>
             <div className="space-y-1">{primary.map((item) => <NavLink item={item} key={item.href} />)}</div>
@@ -94,11 +93,6 @@ export function AppShell({ children, session, counts }: { children: React.ReactN
             <div className="space-y-1">{intelligence.map((item) => <NavLink item={item} key={item.href} />)}</div>
           </div>
         </nav>
-
-        {/* Just for fun: fills the empty space and watches the cursor anywhere on the page. */}
-        <div className="eyt-inline flex min-h-0 flex-1 items-center justify-center overflow-hidden py-4">
-          <EyeTracker size={96} shape="Cube" eyes="Slant" watchPage />
-        </div>
 
         <div className="mt-3 border-t divider pt-3">
           <div className="mb-2 flex items-center gap-3 rounded-lg px-2 py-2">
