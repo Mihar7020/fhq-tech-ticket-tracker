@@ -10,7 +10,7 @@ const createSchema = z.object({
   requesterEmail: z.string().trim().email().optional().or(z.literal("")),
   siteId: z.string().min(1),
   priority: z.enum(["Critical", "High", "Normal", "Low"]),
-  status: z.enum(["New", "Triage", "In progress", "Waiting on staff", "Waiting on IT", "Resolved"]),
+  status: z.enum(["New", "Triage", "In progress", "Waiting on requester", "Waiting on IT", "Resolved"]),
   assigneeId: z.string().optional().or(z.literal("")),
   details: z.string().trim().min(6).max(50_000),
 });

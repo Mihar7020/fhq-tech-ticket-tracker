@@ -4,7 +4,7 @@ const statusStyles: Record<TicketStatus, { color: string; background: string; bo
   New: { color: "var(--gold-bright)", background: "var(--gold-soft)", border: "rgba(224, 163, 22, .38)" },
   Triage: { color: "var(--text)", background: "var(--ink-3)", border: "var(--line-strong)" },
   "In progress": { color: "var(--text)", background: "var(--ink-3)", border: "var(--line-strong)" },
-  "Waiting on staff": { color: "var(--muted)", background: "var(--ink-3)", border: "var(--line)" },
+  "Waiting on requester": { color: "var(--muted)", background: "var(--ink-3)", border: "var(--line)" },
   "Waiting on IT": { color: "var(--muted)", background: "var(--ink-3)", border: "var(--line)" },
   Resolved: { color: "var(--green)", background: "rgba(111, 159, 120, .10)", border: "rgba(111, 159, 120, .35)" },
   Voided: { color: "var(--red)", background: "var(--red-soft)", border: "rgba(217, 74, 58, .35)" },

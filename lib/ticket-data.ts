@@ -14,12 +14,12 @@ export const hasDatabase = () => Boolean(process.env.DATABASE_URL?.trim());
 
 const statusFromDb: Record<string, TicketStatus> = {
   NEW: "New", TRIAGE: "Triage", IN_PROGRESS: "In progress",
-  WAITING_ON_STAFF: "Waiting on staff", WAITING_ON_IT: "Waiting on IT",
+  WAITING_ON_STAFF: "Waiting on requester", WAITING_ON_IT: "Waiting on IT",
   RESOLVED: "Resolved", CLOSED: "Voided", MERGED: "Resolved",
 };
 
 const priorityFromDb = { CRITICAL: "Critical", HIGH: "High", NORMAL: "Normal", LOW: "Low" } as const;
-export const statusToDb = { "New": "NEW", Triage: "TRIAGE", "In progress": "IN_PROGRESS", "Waiting on staff": "WAITING_ON_STAFF", "Waiting on IT": "WAITING_ON_IT", Resolved: "RESOLVED", Voided: "CLOSED" } as const;
+export const statusToDb = { "New": "NEW", Triage: "TRIAGE", "In progress": "IN_PROGRESS", "Waiting on requester": "WAITING_ON_STAFF", "Waiting on IT": "WAITING_ON_IT", Resolved: "RESOLVED", Voided: "CLOSED" } as const;
 export const priorityToDb = { Critical: "CRITICAL", High: "HIGH", Normal: "NORMAL", Low: "LOW" } as const;
 
 const ticketInclude = {
@@ -69,7 +69,8 @@ export function mapTicket(row: TicketRow): Ticket {
     createdAt: row.createdAt.toLocaleString("en-CA", { timeZone: DISPLAY_TIME_ZONE, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }),
     updatedAt: relative(row.updatedAt),
     doomMinutes: minutes,
-    doomRisk: Math.round((row.predictedBreachRisk ?? 0) * 100),
+    // Tickets waiting on the requester are paused: never counted as at risk.
+    doomRisk: row.status === "WAITING_ON_STAFF" ? 0 : Math.round((row.predictedBreachRisk ?? 0) * 100),
     frustration: Math.round(row.frustrationScore ?? 0),
     affected: row.affectedCount ?? 1,
     asks: (digest?.asks as string[] | undefined) ?? [],
@@ -115,7 +116,7 @@ function mapTimeline(row: TicketRow): TimelineEvent[] {
   }));
   const audits: TimelineEvent[] = row.auditEvents
     .filter((event) => !["EMAIL_INGESTED", "OUTBOUND_COMMENT", "INTERNAL_NOTE"].includes(event.action))
-    .map((event) => ({ id: event.id, kind: "status", actor: event.actor?.name || "FHQ Tech", title: event.action.replaceAll("_", " ").toLowerCase().replace(/^./, (c) => c.toUpperCase()), body: "Ticket updated.", at: relative(event.createdAt), internal: true }));
+    .map((event) => ({ id: event.id, kind: "status", actor: event.actor?.name || "FHQ Tech", title: event.action.replaceAll("_", " ").toLowerCase().replace(/^./, (c) => c.toUpperCase()), body: (event.after && typeof event.after === "object" && "note" in event.after && typeof event.after.note === "string") ? event.after.note : "Ticket updated.", at: relative(event.createdAt), internal: true }));
   return [...messages, ...audits].sort((a, b) => a.at.localeCompare(b.at));
 }
 

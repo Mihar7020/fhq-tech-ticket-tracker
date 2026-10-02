@@ -9,7 +9,7 @@ import { useApp } from "@/components/app-providers";
 import type { Priority, Site, Tech, TicketStatus } from "@/lib/types";
 
 const priorities: Priority[] = ["Low", "Normal", "High", "Critical"];
-const statuses: TicketStatus[] = ["New", "Triage", "In progress", "Waiting on staff", "Waiting on IT", "Resolved"];
+const statuses: TicketStatus[] = ["New", "Triage", "In progress", "Waiting on requester", "Waiting on IT", "Resolved"];
 
 export function NewTicketView({ sites, techs }: { sites: Site[]; techs: Tech[] }) {
   const { toast } = useApp();

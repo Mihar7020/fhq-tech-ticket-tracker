@@ -3,7 +3,7 @@ import { isActiveTicketStatus } from "@/lib/ticket-status";
 import type { TicketStatus } from "@/lib/types";
 
 describe("active ticket status", () => {
-  it.each<TicketStatus>(["New", "Triage", "In progress", "Waiting on staff", "Waiting on IT"])("keeps %s in active work", (status) => {
+  it.each<TicketStatus>(["New", "Triage", "In progress", "Waiting on requester", "Waiting on IT"])("keeps %s in active work", (status) => {
     expect(isActiveTicketStatus(status)).toBe(true);
   });
 

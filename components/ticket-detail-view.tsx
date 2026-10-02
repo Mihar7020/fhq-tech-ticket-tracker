@@ -5,13 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, ChevronDown, Clock3, Merge, MessageSquareText, Pencil, Save, Send, StickyNote, Trash2, UserCheck, X } from "lucide-react";
 import { CcPicker } from "@/components/cc-picker";
+import { fillTemplate, replyTemplates } from "@/lib/reply-templates";
 import { AnimatePresence, motion } from "framer-motion";
 import { SiteBadge } from "@/components/site-badge";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
 import { useApp } from "@/components/app-providers";
 import type { Person, Priority, Site, Tech, Ticket, TicketStatus, TimelineEvent } from "@/lib/types";
 
-const statuses: TicketStatus[] = ["New", "Triage", "In progress", "Waiting on staff", "Waiting on IT", "Resolved", "Voided"];
+const statuses: TicketStatus[] = ["New", "Triage", "In progress", "Waiting on requester", "Waiting on IT", "Resolved", "Voided"];
 const priorities: Priority[] = ["Critical", "High", "Normal", "Low"];
 
 type RoutingSuggestion = { id: string; site: { id: string; code: string; name: string } };
@@ -32,6 +33,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
   const [routingAction, setRoutingAction] = useState<"assign" | "dismiss" | null>(null);
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
   const [ccList, setCcList] = useState<string[]>([]);
+  const [waitAfterSend, setWaitAfterSend] = useState(false);
   const [draft, setDraft] = useState(() => ({
     subject: initialTicket.subject,
     category: initialTicket.category,
@@ -146,6 +148,14 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
     router.refresh();
   }
 
+  function applyTemplate(id: string) {
+    const template = replyTemplates.find((item) => item.id === id);
+    if (!template) return;
+    const filled = fillTemplate(template.body, { name: ticket.requester, school: site?.name, ticket: ticket.number });
+    setMessage((current) => (current.trim() ? `${current.trimEnd()}\n\n${filled}` : filled));
+    if (template.waitForReply) setWaitAfterSend(true);
+  }
+
   async function addComment() {
     if (!message.trim() || saving) return; setSaving(true);
     const internal = noteMode === "Internal note";
@@ -154,7 +164,10 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
     const result = await response.json() as { id?: string; emailStatus?: "not_attempted" | "sent" | "failed" };
     setTimeline((current) => [...current, { id: result.id ?? `local-${Date.now()}`, kind: internal ? "note" : "email", actor: "You", title: internal ? "Internal note" : "Public comment", body: message, at: "Just now", internal }]);
     toast(internal ? "Internal note saved" : result.emailStatus === "failed" ? "Comment saved, but email reply failed" : result.emailStatus === "sent" ? "Comment saved and emailed" : "Public comment added"); setMessage(""); setCcList([]);
+    if (!internal && waitAfterSend && ticket.status !== "Waiting on requester") await updateStatus("Waiting on requester");
+    setWaitAfterSend(false);
   }
+
 
   async function deleteInternalNote(noteId: string) {
     if (!window.confirm("Delete this internal note?")) return;
@@ -331,6 +344,14 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
               <span className="muted text-xs">{noteMode === "Public comment" ? "Visible to requester and emailed for email-created tickets" : "IT team only"}</span>
             </div>
             <div className="p-5">
+              {noteMode === "Public comment" ? (
+                <label className="mb-3 block"><span className="sr-only">Use a reply template</span>
+                  <select className="input" value="" onChange={(event) => applyTemplate(event.target.value)}>
+                    <option value="">Use a template…</option>
+                    {replyTemplates.map((template) => <option key={template.id} value={template.id}>{template.title}</option>)}
+                  </select>
+                </label>
+              ) : null}
               <label htmlFor="message" className="sr-only">{noteMode}</label>
               <textarea id="message" value={message} onChange={(event) => setMessage(event.target.value)} className="input min-h-36 leading-6" placeholder={noteMode === "Public comment" ? "Write an update for the requester..." : "Add an internal troubleshooting note..."} />
               {noteMode === "Public comment" ? (
@@ -340,7 +361,13 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
                   <p className="muted mt-2 text-[10px]">Optional. CC recipients receive this update with the requester.</p>
                 </div>
               ) : null}
-              <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+              <div className="mt-3 flex flex-wrap items-center justify-end gap-3">
+                {noteMode === "Public comment" ? (
+                  <label className="muted mr-auto flex items-center gap-2 text-xs">
+                    <input type="checkbox" checked={waitAfterSend} onChange={(event) => setWaitAfterSend(event.target.checked)} />
+                    Set to Waiting on requester after sending
+                  </label>
+                ) : null}
                 <button disabled={!message.trim() || saving} onClick={addComment} className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-40">
                   {noteMode === "Public comment" ? <Send size={15} /> : <Save size={15} />}
                   {noteMode === "Public comment" ? "Add comment" : "Save note"}

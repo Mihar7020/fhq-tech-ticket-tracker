@@ -5,7 +5,7 @@ const statusLabels = {
   NEW: "New",
   TRIAGE: "Triage",
   IN_PROGRESS: "In progress",
-  WAITING_ON_STAFF: "Waiting on staff",
+  WAITING_ON_STAFF: "Waiting on requester",
   WAITING_ON_IT: "Waiting on IT",
   RESOLVED: "Resolved",
   CLOSED: "Voided",

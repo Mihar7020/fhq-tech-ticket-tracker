@@ -63,7 +63,7 @@ export function TicketListView({ tickets, sites, techs }: { tickets: Ticket[]; s
               <option>New</option>
               <option>Triage</option>
               <option>In progress</option>
-              <option>Waiting on staff</option>
+              <option>Waiting on requester</option>
               <option>Waiting on IT</option>
               <option>Resolved</option>
               <option>Voided</option>

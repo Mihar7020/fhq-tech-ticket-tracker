@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { priorityToDb, statusToDb } from "@/lib/ticket-data";
 
 const patchSchema = z.object({
-  status: z.enum(["New", "Triage", "In progress", "Waiting on staff", "Waiting on IT", "Resolved", "Voided"]).optional(),
+  status: z.enum(["New", "Triage", "In progress", "Waiting on requester", "Waiting on IT", "Resolved", "Voided"]).optional(),
   priority: z.enum(["Critical", "High", "Normal", "Low"]).optional(),
   assigneeId: z.string().nullable().optional(),
   siteId: z.string().nullable().optional(),
