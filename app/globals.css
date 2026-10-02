@@ -104,3 +104,47 @@ textarea.input { min-height: 118px; padding: 12px; resize: vertical; }
   .report-print-sheet table { font-size: 9px; }
   .ticket-print-item { break-inside: avoid; page-break-inside: avoid; }
 }
+
+/* ══ Eye tracker ═══════════════════════════════════════════
+   See components/eye-tracker.tsx. The frame holds the largest
+   ball the Size knob allows, so the wall never rescales it.
+   FHQ Tech: Bencho's tokens are mapped to this app's own on the
+   component root, so nothing leaks out — the ball is the brand
+   teal fill and the eyes are the white used on top of it; ink and
+   ground are this app's text and page colours. */
+.eyt {
+  --fill-slab: var(--gold);
+  --fill-on: var(--ink-3);
+  --ink-eyt: var(--text);
+  --bg-eyt: var(--ink);
+  width: 200px;
+  height: 200px;
+  display: grid;
+  place-items: center;}
+
+.eyt-ball {
+  width: var(--eyt-size, 100px);
+  height: var(--eyt-size, 100px);
+  overflow: visible;}
+
+/* the ball is the Fill's own slab and the eyes its ink: white
+   with dark eyes on a light fill, near-black with light eyes on
+   a dark one */
+.eyt-body { fill: var(--fill-slab, #ffffff); }
+
+.eyt-eye { fill: var(--fill-on, #0b0b0d); }
+
+/* FHQ Tech: inline use (the login card) sizes the frame to the ball */
+.eyt-inline .eyt { width: auto; height: auto; }
+
+.logo-test .eyt { width: auto; height: auto; }
+
+.logo-test .eyt-body { fill: var(--ink-eyt); }
+
+.logo-test .eyt-eye { fill: var(--bg-eyt); }
+
+/* the circle and pill in dark mode match the hexagon: a lifted
+   dark body with the eyes kept white */
+[data-theme="dark"] .logo-test .eyt-body { fill: #2b2c30; }
+
+[data-theme="dark"] .logo-test .eyt-eye { fill: #fbfbfa; }
