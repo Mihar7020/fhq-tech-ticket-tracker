@@ -3,6 +3,13 @@ import { db } from "@/lib/db";
 import type { Person, Site, Tech, Ticket, TicketStatus, TimelineEvent } from "@/lib/types";
 import { sites as coreSites, techs as coreTechs } from "@/lib/demo-data";
 
+// The helpdesk's own addresses are on every email, so they're hidden from the recipient lists.
+const helpdeskAddresses = () => new Set(["fhqtctech@fhqtc.net", process.env.GRAPH_MAILBOX ?? ""].map((address) => address.trim().toLowerCase()).filter(Boolean));
+export const visibleRecipients = (addresses?: string[] | null) => {
+  const hidden = helpdeskAddresses();
+  return [...new Set((addresses ?? []).map((address) => address.trim().toLowerCase()).filter((address) => address && !hidden.has(address)))];
+};
+
 export const hasDatabase = () => Boolean(process.env.DATABASE_URL?.trim());
 
 const statusFromDb: Record<string, TicketStatus> = {
@@ -50,7 +57,8 @@ export function mapTicket(row: TicketRow): Ticket {
     digest: digest?.problemStatement || firstMessage?.textBody || row.subject,
     requester,
     requesterEmail: row.requesterEmailAtIntake,
-    requesterCc: firstMessage?.ccAddresses ?? [],
+    requesterTo: visibleRecipients(firstMessage?.toAddresses),
+    requesterCc: visibleRecipients(firstMessage?.ccAddresses),
     requesterRole: row.person?.roleTitle || "Staff",
     siteId: row.siteId ?? undefined,
     status: statusFromDb[row.status] ?? "New",

@@ -453,7 +453,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
             <dl className="mt-5 space-y-3 text-xs">
               <InfoLine label="Role" value={ticket.requesterRole} />
             </dl>
-            {ticket.requesterCc.length ? <div className="mt-4 border-t divider pt-4"><p className="label mb-2">CC on original email</p><div className="flex flex-wrap gap-2">{ticket.requesterCc.map((email) => <span key={email} className="chip">{email}</span>)}</div></div> : null}
+            {ticket.requesterTo.length || ticket.requesterCc.length ? <div className="mt-4 border-t divider pt-4"><p className="label mb-2">Recipients on original email</p>{ticket.requesterTo.length ? <div className="mb-2 flex flex-wrap items-center gap-2"><span className="text-xs font-semibold text-[var(--muted)]">To</span>{ticket.requesterTo.map((email) => <span key={`to-${email}`} className="chip">{email}</span>)}</div> : null}{ticket.requesterCc.length ? <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-semibold text-[var(--muted)]">CC</span>{ticket.requesterCc.map((email) => <span key={`cc-${email}`} className="chip">{email}</span>)}</div> : null}</div> : null}
           </section>
 
           <section className="card p-5">
