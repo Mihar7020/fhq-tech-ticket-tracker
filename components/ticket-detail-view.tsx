@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronDown, Clock3, Merge, MessageSquareText, Pencil, Plus, Save, Send, StickyNote, Trash2, UserCheck, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Clock3, Merge, MessageSquareText, Pencil, Save, Send, StickyNote, Trash2, UserCheck, X } from "lucide-react";
+import { CcPicker } from "@/components/cc-picker";
 import { AnimatePresence, motion } from "framer-motion";
 import { SiteBadge } from "@/components/site-badge";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
@@ -30,7 +31,6 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
   const [routingSuggestion, setRoutingSuggestion] = useState(pendingRoutingSuggestion);
   const [routingAction, setRoutingAction] = useState<"assign" | "dismiss" | null>(null);
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
-  const [ccInput, setCcInput] = useState("");
   const [ccList, setCcList] = useState<string[]>([]);
   const [draft, setDraft] = useState(() => ({
     subject: initialTicket.subject,
@@ -153,14 +153,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
     setSaving(false); if (!response.ok) { toast("Could not save the comment"); return; }
     const result = await response.json() as { id?: string; emailStatus?: "not_attempted" | "sent" | "failed" };
     setTimeline((current) => [...current, { id: result.id ?? `local-${Date.now()}`, kind: internal ? "note" : "email", actor: "You", title: internal ? "Internal note" : "Public comment", body: message, at: "Just now", internal }]);
-    toast(internal ? "Internal note saved" : result.emailStatus === "failed" ? "Comment saved, but email reply failed" : result.emailStatus === "sent" ? "Comment saved and emailed" : "Public comment added"); setMessage(""); setCcList([]); setCcInput("");
-  }
-
-  function addCc() {
-    const email = ccInput.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast("Enter a valid CC email address"); return; }
-    if (email === ticket.requesterEmail.toLowerCase() || ccList.includes(email)) { setCcInput(""); return; }
-    setCcList((current) => [...current, email]); setCcInput("");
+    toast(internal ? "Internal note saved" : result.emailStatus === "failed" ? "Comment saved, but email reply failed" : result.emailStatus === "sent" ? "Comment saved and emailed" : "Public comment added"); setMessage(""); setCcList([]);
   }
 
   async function deleteInternalNote(noteId: string) {
@@ -342,12 +335,9 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
               <textarea id="message" value={message} onChange={(event) => setMessage(event.target.value)} className="input min-h-36 leading-6" placeholder={noteMode === "Public comment" ? "Write an update for the requester..." : "Add an internal troubleshooting note..."} />
               {noteMode === "Public comment" ? (
                 <div className="mt-3 rounded-lg border divider bg-[var(--ink-3)]/45 p-3">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                    <label className="min-w-0 flex-1"><span className="label mb-2 block">CC another person</span><input list="ticket-cc-people" className="input" type="email" value={ccInput} onChange={(event) => setCcInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCc(); } }} placeholder="Choose a person or type an email" /></label>
-                    <datalist id="ticket-cc-people">{people.filter((person) => person.email).map((person) => <option key={person.id} value={person.email}>{person.name}</option>)}</datalist>
-                    <button type="button" className="btn" disabled={!ccInput.trim()} onClick={addCc}><Plus size={14} /> Add CC</button>
-                  </div>
-                  {ccList.length ? <div className="mt-3 flex flex-wrap gap-2">{ccList.map((email) => <span key={email} className="chip gap-2">{email}<button type="button" aria-label={`Remove ${email}`} onClick={() => setCcList((current) => current.filter((item) => item !== email))}><X size={11} /></button></span>)}</div> : <p className="muted mt-2 text-[10px]">Optional. CC recipients receive this update with the requester.</p>}
+                  <span className="label mb-2 block">CC</span>
+                  <CcPicker people={people} value={ccList} onChange={setCcList} exclude={[ticket.requesterEmail]} />
+                  <p className="muted mt-2 text-[10px]">Optional. CC recipients receive this update with the requester.</p>
                 </div>
               ) : null}
               <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
