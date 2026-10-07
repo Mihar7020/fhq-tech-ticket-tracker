@@ -18,6 +18,12 @@ const priorities: Priority[] = ["Critical", "High", "Normal", "Low"];
 type RoutingSuggestion = { id: string; site: { id: string; code: string; name: string } };
 type MergedTicketDetail = { ticket: Ticket; timeline: TimelineEvent[] };
 
+function originalReplyCc(ticket: Ticket) {
+  const requester = ticket.requesterEmail.trim().toLowerCase();
+  return [...new Set([...ticket.requesterTo, ...ticket.requesterCc].map((email) => email.trim().toLowerCase()))]
+    .filter((email) => email && email !== requester);
+}
+
 export function TicketDetailView({ initialTicket, initialTimeline, initialMergedTickets, sites, techs, people, mergeCandidates, currentUserEmail, pendingRoutingSuggestion }: { initialTicket: Ticket; initialTimeline: TimelineEvent[]; initialMergedTickets: MergedTicketDetail[]; sites: Site[]; techs: Tech[]; people: Person[]; mergeCandidates: Ticket[]; currentUserEmail: string; currentUserRole: string; pendingRoutingSuggestion: RoutingSuggestion | null }) {
   const [ticket, setTicket] = useState(initialTicket);
   const [timeline, setTimeline] = useState(initialTimeline);
@@ -33,7 +39,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, initialMerged
   const [routingSuggestion, setRoutingSuggestion] = useState(pendingRoutingSuggestion);
   const [routingAction, setRoutingAction] = useState<"assign" | "dismiss" | null>(null);
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
-  const [ccList, setCcList] = useState<string[]>([]);
+  const [ccList, setCcList] = useState<string[]>(() => originalReplyCc(initialTicket));
   const [waitAfterSend, setWaitAfterSend] = useState(false);
   const [draft, setDraft] = useState(() => ({
     subject: initialTicket.subject,
@@ -164,7 +170,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, initialMerged
     setSaving(false); if (!response.ok) { toast("Could not save the comment"); return; }
     const result = await response.json() as { id?: string; emailStatus?: "not_attempted" | "sent" | "failed" };
     setTimeline((current) => [...current, { id: result.id ?? `local-${Date.now()}`, kind: internal ? "note" : "email", actor: "You", title: internal ? "Internal note" : "Public comment", body: message, at: "Just now", internal }]);
-    toast(internal ? "Internal note saved" : result.emailStatus === "failed" ? "Comment saved, but email reply failed" : result.emailStatus === "sent" ? "Comment saved and emailed" : "Public comment added"); setMessage(""); setCcList([]);
+    toast(internal ? "Internal note saved" : result.emailStatus === "failed" ? "Comment saved, but email reply failed" : result.emailStatus === "sent" ? "Comment saved and emailed" : "Public comment added"); setMessage(""); setCcList(originalReplyCc(ticket));
     if (!internal && waitAfterSend && ticket.status !== "Waiting on requester") await updateStatus("Waiting on requester");
     setWaitAfterSend(false);
   }
@@ -425,7 +431,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, initialMerged
                 <div className="mt-3 rounded-lg border divider bg-[var(--ink-3)]/45 p-3">
                   <span className="label mb-2 block">CC</span>
                   <CcPicker people={people} value={ccList} onChange={setCcList} exclude={[ticket.requesterEmail]} />
-                  <p className="muted mt-2 text-[10px]">Optional. CC recipients receive this update with the requester.</p>
+                  <p className="muted mt-2 text-[10px]">Original recipients are included automatically. Remove anyone who should not receive this update, or add another email.</p>
                 </div>
               ) : null}
               <div className="mt-3 flex flex-wrap items-center justify-end gap-3">
