@@ -41,6 +41,7 @@ const ticket = (partial: Partial<Ticket> & Pick<Ticket, "id" | "number" | "subje
   asks: ["Restore the affected classroom service"],
   missing: ["Exact error message"],
   suggestedAction: "Confirm power and input source, then reseat the classroom adapter.",
+  originalAttachments: [],
   originalEmail: "Hi Tech team,\n\nThe classroom equipment stopped working this morning. I have a class coming in shortly and I am not sure what changed. Could someone please take a look?\n\nThank you,\nSchool staff",
   fields: [],
   routingReason: "Matched sender email to the staff directory.",

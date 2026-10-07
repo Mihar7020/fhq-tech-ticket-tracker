@@ -137,7 +137,7 @@ export async function sendNewTicketEmail(input: {
   return { graphMessageId: draft.id, internetMessageId: draft.internetMessageId };
 }
 
-async function findGraphMessageIdByInternetMessageId(internetMessageId: string) {
+export async function findGraphMessageIdByInternetMessageId(internetMessageId: string) {
   const mailbox = process.env.GRAPH_MAILBOX;
   if (!mailbox) throw new Error("GRAPH_MAILBOX is not configured.");
   const filter = `internetMessageId eq '${internetMessageId.replaceAll("'", "''")}'`;

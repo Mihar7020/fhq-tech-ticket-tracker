@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, ChevronDown, Clock3, Merge, MessageSquareText, Pencil, Save, Send, StickyNote, Trash2, UserCheck, X } from "lucide-react";
 import { CcPicker } from "@/components/cc-picker";
+import { EmailBody } from "@/components/email-body";
 import { fillTemplate, replyTemplates } from "@/lib/reply-templates";
 import { AnimatePresence, motion } from "framer-motion";
 import { SiteBadge } from "@/components/site-badge";
@@ -341,7 +342,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, initialMerged
             ) : (
               <>
                 <div className="rounded-lg border divider bg-[var(--ink-3)]/45 p-4">
-                  <p className="whitespace-pre-wrap text-sm leading-7">{ticket.originalEmail}</p>
+                  <EmailBody text={ticket.originalEmail} attachments={ticket.originalAttachments} />
                 </div>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <InfoTile label="Category" value={ticket.category} />
@@ -377,7 +378,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, initialMerged
                       </dl>
                       <div className="rounded-lg border divider bg-[var(--ink-3)]/45 p-4">
                         <p className="label mb-2">Original request</p>
-                        <p className="whitespace-pre-wrap text-sm leading-6">{mergedTicket.originalEmail}</p>
+                        <EmailBody text={mergedTicket.originalEmail} attachments={mergedTicket.originalAttachments} />
                       </div>
                       <div>
                         <div className="mb-3 flex items-center justify-between gap-3">
@@ -470,7 +471,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, initialMerged
                       {event.internal && <span className="chip text-[9px]">Internal</span>}
                       <span className="ml-auto text-[10px] muted">{event.at}</span>
                     </div>
-                    <p className="muted mt-1 text-xs leading-relaxed">{event.body}</p>
+                    {event.kind === "email" ? <EmailBody text={event.body} attachments={event.attachments} compact className="muted mt-1" /> : <p className="muted mt-1 text-xs leading-relaxed">{event.body}</p>}
                     <p className="mt-1 text-[10px] muted">by {event.actor.replace("Time to Doom", "System")}</p>
                   </div>
                 </div>

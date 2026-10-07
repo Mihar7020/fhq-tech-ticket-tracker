@@ -41,6 +41,8 @@ export type ExtractedField = {
   source: string;
   inferred?: boolean;
 };
+export type AttachmentInfo = { id: string; filename: string; contentType: string; sizeBytes: number; contentId?: string };
+
 export type Ticket = {
   id: string;
   number: string;
@@ -68,6 +70,7 @@ export type Ticket = {
   missing: string[];
   suggestedAction: string;
   originalEmail: string;
+  originalAttachments: AttachmentInfo[];
   fields: ExtractedField[];
   routingReason: string;
   flags?: string[];
@@ -82,4 +85,5 @@ export type TimelineEvent = {
   body: string;
   at: string;
   internal?: boolean;
+  attachments?: AttachmentInfo[];
 };

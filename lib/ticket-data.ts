@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import type { Person, Site, Tech, Ticket, TicketStatus, TimelineEvent } from "@/lib/types";
+import type { AttachmentInfo, Person, Site, Tech, Ticket, TicketStatus, TimelineEvent } from "@/lib/types";
 import { sites as coreSites, techs as coreTechs } from "@/lib/demo-data";
 
 // The helpdesk's own addresses are on every email, so they're hidden from the recipient lists.
@@ -26,7 +26,7 @@ const ticketInclude = {
   site: true,
   person: { include: { aliases: true } },
   assignee: true,
-  messages: { orderBy: { sentAt: "asc" as const } },
+  messages: { orderBy: { sentAt: "asc" as const }, include: { attachments: { select: { id: true, filename: true, contentType: true, sizeBytes: true, contentId: true }, orderBy: { createdAt: "asc" as const } } } },
   digests: { include: { revisions: { orderBy: { revision: "desc" as const }, take: 1 } }, orderBy: { updatedAt: "desc" as const }, take: 1 },
   auditEvents: { include: { actor: true }, orderBy: { createdAt: "asc" as const } },
   mergedInto: { select: { publicId: true } },
@@ -77,6 +77,7 @@ export function mapTicket(row: TicketRow): Ticket {
     missing: (digest?.missingInfo as string[] | undefined) ?? [],
     suggestedAction: digest?.suggestedFirstAction || "Review the request and contact the requester if more detail is needed.",
     originalEmail: firstMessage?.textBody || "Manual request",
+    originalAttachments: firstMessage?.direction === "INBOUND" ? toAttachments(firstMessage.attachments) : [],
     fields: [],
     routingReason: row.site ? `Routed to ${row.site.name}.` : "School has not been assigned yet.",
     flags: row.status === "MERGED" && row.mergedInto ? [`Merged into ${row.mergedInto.publicId}`] : undefined,
@@ -115,6 +116,9 @@ export async function getPendingRoutingSuggestion(ticketId: string) {
   });
 }
 
+const toAttachments = (rows: { id: string; filename: string; contentType: string; sizeBytes: number; contentId: string | null }[]): AttachmentInfo[] =>
+  rows.map((row) => ({ id: row.id, filename: row.filename, contentType: row.contentType, sizeBytes: row.sizeBytes, contentId: row.contentId ?? undefined }));
+
 function mapTimeline(row: TicketRow): TimelineEvent[] {
   const messages: TimelineEvent[] = row.messages.map((message) => ({
     id: message.id,
@@ -122,6 +126,7 @@ function mapTimeline(row: TicketRow): TimelineEvent[] {
     actor: message.fromName || message.fromAddress,
     title: message.direction === "INTERNAL" ? "Internal note" : message.direction === "OUTBOUND" ? "Public comment" : "Request received",
     body: message.textBody || "",
+    attachments: message.direction === "INBOUND" ? toAttachments(message.attachments) : [],
     at: relative(message.sentAt),
     internal: message.direction === "INTERNAL",
   }));
