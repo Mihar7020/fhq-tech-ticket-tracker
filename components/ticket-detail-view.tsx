@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, ChevronDown, Clock3, Merge, MessageSquareText, Pencil, Save, Send, StickyNote, Trash2, UserCheck, X } from "lucide-react";
 import { CcPicker } from "@/components/cc-picker";
 import { EmailBody } from "@/components/email-body";
+import { replyRecipients } from "@/lib/reply-recipients";
 import { fillTemplate, replyTemplates } from "@/lib/reply-templates";
 import { AnimatePresence, motion } from "framer-motion";
 import { SiteBadge } from "@/components/site-badge";
@@ -19,11 +20,6 @@ const priorities: Priority[] = ["Critical", "High", "Normal", "Low"];
 type RoutingSuggestion = { id: string; site: { id: string; code: string; name: string } };
 type MergedTicketDetail = { ticket: Ticket; timeline: TimelineEvent[] };
 
-function originalReplyCc(ticket: Ticket) {
-  const requester = ticket.requesterEmail.trim().toLowerCase();
-  return [...new Set([...ticket.requesterTo, ...ticket.requesterCc].map((email) => email.trim().toLowerCase()))]
-    .filter((email) => email && email !== requester);
-}
 
 export function TicketDetailView({ initialTicket, initialTimeline, initialMergedTickets, sites, techs, people, mergeCandidates, currentUserEmail, pendingRoutingSuggestion }: { initialTicket: Ticket; initialTimeline: TimelineEvent[]; initialMergedTickets: MergedTicketDetail[]; sites: Site[]; techs: Tech[]; people: Person[]; mergeCandidates: Ticket[]; currentUserEmail: string; currentUserRole: string; pendingRoutingSuggestion: RoutingSuggestion | null }) {
   const [ticket, setTicket] = useState(initialTicket);
@@ -40,7 +36,16 @@ export function TicketDetailView({ initialTicket, initialTimeline, initialMerged
   const [routingSuggestion, setRoutingSuggestion] = useState(pendingRoutingSuggestion);
   const [routingAction, setRoutingAction] = useState<"assign" | "dismiss" | null>(null);
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
-  const [ccList, setCcList] = useState<string[]>(() => originalReplyCc(initialTicket));
+  const mergedTicketList = initialMergedTickets.map((item) => item.ticket);
+  const mergedKey = mergedTicketList.map((item) => item.id).join(",");
+  const [ccList, setCcList] = useState<string[]>(() => replyRecipients(initialTicket, mergedTicketList));
+  // After a merge the page refreshes with the new merged ticket: add its people to the CC list
+  // without dropping anyone the tech already added or removed by hand.
+  const [seenMergedKey, setSeenMergedKey] = useState(mergedKey);
+  if (seenMergedKey !== mergedKey) {
+    setSeenMergedKey(mergedKey);
+    setCcList((current) => [...new Set([...current, ...replyRecipients(initialTicket, mergedTicketList)])]);
+  }
   const [waitAfterSend, setWaitAfterSend] = useState(false);
   const [draft, setDraft] = useState(() => ({
     subject: initialTicket.subject,
@@ -171,7 +176,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, initialMerged
     setSaving(false); if (!response.ok) { toast("Could not save the comment"); return; }
     const result = await response.json() as { id?: string; emailStatus?: "not_attempted" | "sent" | "failed" };
     setTimeline((current) => [...current, { id: result.id ?? `local-${Date.now()}`, kind: internal ? "note" : "email", actor: "You", title: internal ? "Internal note" : "Public comment", body: message, at: "Just now", internal }]);
-    toast(internal ? "Internal note saved" : result.emailStatus === "failed" ? "Comment saved, but email reply failed" : result.emailStatus === "sent" ? "Comment saved and emailed" : "Public comment added"); setMessage(""); setCcList(originalReplyCc(ticket));
+    toast(internal ? "Internal note saved" : result.emailStatus === "failed" ? "Comment saved, but email reply failed" : result.emailStatus === "sent" ? "Comment saved and emailed" : "Public comment added"); setMessage(""); setCcList(replyRecipients(ticket, mergedTicketList));
     if (!internal && waitAfterSend && ticket.status !== "Waiting on requester") await updateStatus("Waiting on requester");
     setWaitAfterSend(false);
   }
