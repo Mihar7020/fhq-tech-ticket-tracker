@@ -1,7 +1,7 @@
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { findGraphMessageIdByInternetMessageId, graphFetch } from "@/lib/email/graph";
-import { pickGraphAttachment } from "@/lib/email-display";
+import { normalizeCid, pickGraphAttachment } from "@/lib/email-display";
 
 export const maxDuration = 60;
 
@@ -30,13 +30,32 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const base = `/users/${encodeURIComponent(mailbox)}/messages/${encodeURIComponent(messageId)}/attachments`;
     const list = await (await graphFetch(`${base}?$select=id,name,contentType,size,isInline`)).json() as { value?: GraphAttachment[] };
     const files = (list.value ?? []).filter((item) => !item["@odata.type"] || item["@odata.type"] === "#microsoft.graph.fileAttachment");
-    const match = pickGraphAttachment(attachment, files);
-    if (!match) return Response.json({ error: "not_found" }, { status: 404 });
 
-    const content = await graphFetch(`${base}/${encodeURIComponent(match.id)}/$value`);
+    // Outlook often gives several inline images the same name (image.png, image001.png), especially in
+    // forwarded chains where each earlier signature comes along. A name alone can pick the wrong one, so
+    // on a name clash read each candidate's Content-ID and serve the one that matches what intake saved.
+    const sameName = files.filter((item) => item.name === attachment.filename);
+    let body: BodyInit | null = null;
+    let match: GraphAttachment | undefined;
+    if (sameName.length > 1 && attachment.contentId) {
+      const wanted = normalizeCid(attachment.contentId);
+      for (const candidate of sameName) {
+        const detail = await (await graphFetch(`${base}/${encodeURIComponent(candidate.id)}`)).json() as { contentId?: string | null; contentBytes?: string };
+        if (normalizeCid(detail.contentId) === wanted && detail.contentBytes) {
+          match = candidate;
+          body = new Uint8Array(Buffer.from(detail.contentBytes, "base64"));
+          break;
+        }
+      }
+    } else {
+      match = sameName[0] ?? pickGraphAttachment(attachment, files);
+    }
+    if (!match) return Response.json({ error: "not_found" }, { status: 404 });
+    if (!body) body = (await graphFetch(`${base}/${encodeURIComponent(match.id)}/$value`)).body;
+
     const type = attachment.contentType || match.contentType || "application/octet-stream";
     const safeName = attachment.filename.replace(/[^\w.\- ]/g, "_");
-    return new Response(content.body, {
+    return new Response(body, {
       headers: {
         "Content-Type": type,
         "Content-Disposition": `${INLINE.test(type) ? "inline" : "attachment"}; filename="${safeName}"`,
