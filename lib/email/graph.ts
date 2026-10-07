@@ -34,6 +34,49 @@ export async function getMessageMime(messageId: string) {
   return Buffer.from(await response.arrayBuffer());
 }
 
+export type GraphInboxMessage = { id: string; receivedDateTime?: string };
+
+export async function listInboxMessagesSince(since: Date) {
+  const mailbox = process.env.GRAPH_MAILBOX;
+  if (!mailbox) throw new Error("GRAPH_MAILBOX is not configured.");
+
+  const query = new URLSearchParams({
+    "$select": "id,receivedDateTime",
+    "$filter": `receivedDateTime ge ${since.toISOString()}`,
+    "$orderby": "receivedDateTime asc",
+    "$top": "100",
+  });
+  let path: string | undefined = `/users/${encodeURIComponent(mailbox)}/mailFolders/inbox/messages?${query}`;
+  const messages: GraphInboxMessage[] = [];
+  const seen = new Set<string>();
+
+  while (path) {
+    const response = await graphFetch(path);
+    const data = await response.json() as {
+      value?: GraphInboxMessage[];
+      "@odata.nextLink"?: string;
+    };
+
+    for (const message of data.value ?? []) {
+      if (message.id && !seen.has(message.id)) {
+        seen.add(message.id);
+        messages.push(message);
+      }
+    }
+
+    const nextLink = data["@odata.nextLink"];
+    if (!nextLink) {
+      path = undefined;
+    } else if (nextLink.startsWith(GRAPH_ROOT)) {
+      path = nextLink.slice(GRAPH_ROOT.length);
+    } else {
+      throw new Error("Microsoft Graph returned an unexpected pagination URL.");
+    }
+  }
+
+  return messages;
+}
+
 const escapeHtml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 
 // Uses Graph's one-step /reply (the method that has always worked here). The signature is

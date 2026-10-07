@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { reconcileInbox } from "@/lib/email/reconcile";
 import { ensureInboxSubscription, renewInboxSubscription } from "@/lib/email/subscriptions";
 
 const schema = z.object({ subscriptionId: z.string().min(1).optional() });
@@ -8,7 +9,14 @@ const isAuthorized = (request: Request) =>
 
 export async function GET(request: Request) {
   if (!isAuthorized(request)) return Response.json({ error: "unauthorized" }, { status: 401 });
-  return Response.json(await ensureInboxSubscription());
+  try {
+    const subscription = await ensureInboxSubscription();
+    const reconciliation = await reconcileInbox(48);
+    return Response.json({ subscription, reconciliation });
+  } catch (error) {
+    console.error("[mail-reconciliation] scheduled run failed", error);
+    return Response.json({ error: "mail_reconciliation_failed" }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {

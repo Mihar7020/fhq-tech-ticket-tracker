@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bold, Check, ImagePlus, Italic, KeyRound, Link2, Mail, Save, ShieldCheck, Underline, UserRoundCog } from "lucide-react";
+import { Bold, Check, ImagePlus, Italic, KeyRound, Link2, Mail, MailSearch, Save, ShieldCheck, Underline, UserRoundCog } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { useApp } from "@/components/app-providers";
 
@@ -12,6 +12,9 @@ export function SettingsView({ initialSignature, currentUserName, currentUserEma
   const [saving, setSaving] = useState(false);
   const [signatureConfigured, setSignatureConfigured] = useState(Boolean(initialSignature));
   const [error, setError] = useState("");
+  const [recoveringMail, setRecoveringMail] = useState(false);
+  const [recoveryMessage, setRecoveryMessage] = useState("");
+  const [recoveryError, setRecoveryError] = useState("");
 
   useEffect(() => {
     if (editorRef.current) editorRef.current.innerHTML = initialSignature;
@@ -51,6 +54,34 @@ export function SettingsView({ initialSignature, currentUserName, currentUserEma
     if (editorRef.current) editorRef.current.innerHTML = result.html ?? "";
     setSignatureConfigured(Boolean(result.html));
     toast("Email signature saved");
+  }
+
+  async function recoverMail() {
+    setRecoveringMail(true);
+    setRecoveryMessage("");
+    setRecoveryError("");
+    const response = await fetch("/api/email/reconcile", { method: "POST" });
+    const result = await response.json().catch(() => ({})) as {
+      checked?: number;
+      created?: number;
+      updated?: number;
+      duplicate?: number;
+      ignored?: number;
+      failed?: number;
+    };
+    setRecoveringMail(false);
+
+    if (!response.ok) {
+      setRecoveryError("The mailbox check could not be completed. Try again or check the Vercel logs.");
+      return;
+    }
+
+    const recovered = (result.created ?? 0) + (result.updated ?? 0);
+    const message = recovered
+      ? `Recovered ${recovered} missing message${recovered === 1 ? "" : "s"}. Checked ${result.checked ?? 0} total; ${result.duplicate ?? 0} already existed${result.failed ? `; ${result.failed} failed` : ""}.`
+      : `Checked ${result.checked ?? 0} messages. Nothing was missing${result.failed ? `; ${result.failed} could not be processed` : ""}.`;
+    setRecoveryMessage(message);
+    toast(recovered ? "Missing email recovered" : "Mailbox check complete");
   }
 
   return (
@@ -113,6 +144,25 @@ export function SettingsView({ initialSignature, currentUserName, currentUserEma
 
           <section className="card p-5">
             <div className="flex items-start gap-3"><KeyRound className="gold" size={18} /><div><strong>Private IT workspace</strong><p className="muted mt-1 text-xs">Account and email actions stay restricted to signed-in FHQ Tech staff.</p></div></div>
+          </section>
+
+          <section className="card p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <MailSearch className="mt-0.5 text-[color:var(--teal)]" size={18} />
+                <div>
+                  <strong>Recover missed email</strong>
+                  <p className="muted mt-1 max-w-xl text-xs">Check the FHQ Tech inbox for messages received during the last 48 hours. Existing messages are skipped automatically.</p>
+                </div>
+              </div>
+              <button type="button" className="btn shrink-0" disabled={recoveringMail} onClick={() => void recoverMail()}>
+                <MailSearch size={15} /> {recoveringMail ? "Checking mailbox..." : "Check last 48 hours"}
+              </button>
+            </div>
+            <div className="mt-3 min-h-5 text-xs" aria-live="polite">
+              {recoveryMessage ? <p className="text-[color:var(--green)]">{recoveryMessage}</p> : null}
+              {recoveryError ? <p className="text-[var(--red)]" role="alert">{recoveryError}</p> : null}
+            </div>
           </section>
         </div>
       </div>
