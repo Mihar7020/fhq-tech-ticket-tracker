@@ -28,7 +28,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     if (!mailbox) throw new Error("GRAPH_MAILBOX is not configured.");
     const messageId = await findGraphMessageIdByInternetMessageId(attachment.message.internetMessageId);
     const base = `/users/${encodeURIComponent(mailbox)}/messages/${encodeURIComponent(messageId)}/attachments`;
-    const list = await (await graphFetch(`${base}?$select=id,name,contentType,size,contentId`)).json() as { value?: GraphAttachment[] };
+    const list = await (await graphFetch(`${base}?$select=id,name,contentType,size,isInline`)).json() as { value?: GraphAttachment[] };
     const files = (list.value ?? []).filter((item) => !item["@odata.type"] || item["@odata.type"] === "#microsoft.graph.fileAttachment");
     const match = pickGraphAttachment(attachment, files);
     if (!match) return Response.json({ error: "not_found" }, { status: 404 });
