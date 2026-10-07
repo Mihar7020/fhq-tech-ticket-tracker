@@ -16,8 +16,9 @@ const statuses: TicketStatus[] = ["New", "Triage", "In progress", "Waiting on re
 const priorities: Priority[] = ["Critical", "High", "Normal", "Low"];
 
 type RoutingSuggestion = { id: string; site: { id: string; code: string; name: string } };
+type MergedTicketDetail = { ticket: Ticket; timeline: TimelineEvent[] };
 
-export function TicketDetailView({ initialTicket, initialTimeline, sites, techs, people, mergeCandidates, currentUserEmail, pendingRoutingSuggestion }: { initialTicket: Ticket; initialTimeline: TimelineEvent[]; sites: Site[]; techs: Tech[]; people: Person[]; mergeCandidates: Ticket[]; currentUserEmail: string; currentUserRole: string; pendingRoutingSuggestion: RoutingSuggestion | null }) {
+export function TicketDetailView({ initialTicket, initialTimeline, initialMergedTickets, sites, techs, people, mergeCandidates, currentUserEmail, pendingRoutingSuggestion }: { initialTicket: Ticket; initialTimeline: TimelineEvent[]; initialMergedTickets: MergedTicketDetail[]; sites: Site[]; techs: Tech[]; people: Person[]; mergeCandidates: Ticket[]; currentUserEmail: string; currentUserRole: string; pendingRoutingSuggestion: RoutingSuggestion | null }) {
   const [ticket, setTicket] = useState(initialTicket);
   const [timeline, setTimeline] = useState(initialTimeline);
   const [noteMode, setNoteMode] = useState<"Public comment" | "Internal note">("Public comment");
@@ -187,6 +188,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
     const response = await fetch(`/api/tickets/${ticket.id}/merge`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sourcePublicId: mergeNumber.trim() }) });
     if (!response.ok) { const result = await response.json() as { error?: string }; toast(result.error === "ticket_not_found" ? "That ticket number was not found" : "Could not merge that ticket"); return; }
     toast(`${mergeNumber.toUpperCase()} merged into ${ticket.number}`); setMergeNumber(""); setMergeOpen(false);
+    router.refresh();
   }
 
   return (
@@ -262,6 +264,16 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
         </section>
       ) : null}
 
+      {ticket.mergedIntoNumber ? (
+        <section className="card mb-5 flex flex-col gap-3 border-[color:rgba(37,107,115,.35)] bg-[color:rgba(37,107,115,.08)] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="label">Merged ticket</p>
+            <p className="mt-1 text-sm font-semibold">This ticket was merged into {ticket.mergedIntoNumber}. Its information remains available here.</p>
+          </div>
+          <Link className="btn text-xs" href={`/tickets/${ticket.mergedIntoNumber}`}>View primary ticket</Link>
+        </section>
+      ) : null}
+
       <AnimatePresence>
         {resolved && (
           <motion.div className="mb-5 flex items-center gap-3 overflow-hidden rounded-lg border border-[color:rgba(111,159,120,.35)] bg-[color:rgba(111,159,120,.10)] px-5 py-4" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0 }}>
@@ -333,6 +345,61 @@ export function TicketDetailView({ initialTicket, initialTimeline, sites, techs,
               </>
             )}
           </section>
+
+          {initialMergedTickets.length ? (
+            <section className="card overflow-hidden">
+              <div className="border-b divider px-5 py-4">
+                <p className="label">Merged tickets</p>
+                <h2 className="display mt-1 text-xl">Requests kept with this ticket</h2>
+                <p className="muted mt-1 text-xs">Nothing was deleted. Open any merged request below to see its original details and history.</p>
+              </div>
+              <div className="divide-y divider">
+                {initialMergedTickets.map(({ ticket: mergedTicket, timeline: mergedTimeline }) => (
+                  <details key={mergedTicket.id} className="group p-5">
+                    <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--teal)]">
+                      <span className="font-mono text-xs muted">{mergedTicket.number}</span>
+                      <strong className="min-w-0 flex-1 text-sm">{mergedTicket.subject}</strong>
+                      <span className="chip text-[10px]">Merged</span>
+                      <ChevronDown className="muted transition-transform group-open:rotate-180" size={15} aria-hidden="true" />
+                    </summary>
+                    <div className="mt-4 grid gap-4 border-t divider pt-4">
+                      <dl className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+                        <InfoLine label="Requester" value={mergedTicket.requester} />
+                        <InfoLine label="Email" value={mergedTicket.requesterEmail} />
+                        <InfoLine label="School" value={sites.find((item) => item.id === mergedTicket.siteId)?.code ?? "Unrouted"} />
+                        <InfoLine label="Priority" value={mergedTicket.priority} />
+                      </dl>
+                      <div className="rounded-lg border divider bg-[var(--ink-3)]/45 p-4">
+                        <p className="label mb-2">Original request</p>
+                        <p className="whitespace-pre-wrap text-sm leading-6">{mergedTicket.originalEmail}</p>
+                      </div>
+                      <div>
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <p className="label">Ticket history</p>
+                          <Link className="text-xs font-semibold text-[var(--teal)] hover:underline" href={`/tickets/${mergedTicket.number}`}>Open full ticket</Link>
+                        </div>
+                        {mergedTimeline.length ? (
+                          <div className="space-y-3">
+                            {mergedTimeline.map((event) => (
+                              <article key={event.id} className="rounded-lg border divider p-3">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <strong className="text-xs">{event.title}</strong>
+                                  {event.internal ? <span className="chip text-[9px]">Internal</span> : null}
+                                  <span className="ml-auto text-[10px] muted">{event.at}</span>
+                                </div>
+                                <p className="muted mt-1 whitespace-pre-wrap text-xs leading-5">{event.body}</p>
+                                <p className="mt-1 text-[10px] muted">by {event.actor.replace("Time to Doom", "System")}</p>
+                              </article>
+                            ))}
+                          </div>
+                        ) : <p className="muted text-xs">No additional history was recorded for this ticket.</p>}
+                      </div>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <section className="card overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b divider px-5 py-4">

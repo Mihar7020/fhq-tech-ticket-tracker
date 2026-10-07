@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TicketDetailView } from "@/components/ticket-detail-view";
-import { getPendingRoutingSuggestion, getPeople, getSites, getTechs, getTicket, getTickets } from "@/lib/ticket-data";
+import { getMergedTickets, getPendingRoutingSuggestion, getPeople, getSites, getTechs, getTicket, getTickets } from "@/lib/ticket-data";
 import { requireSession } from "@/lib/auth";
 import { isActiveTicket } from "@/lib/ticket-status";
 
@@ -17,6 +17,9 @@ export default async function TicketPage({ params }: Props) {
   const { id } = await params;
   const [result, sites, techs, people, allTickets, session] = await Promise.all([getTicket(id), getSites(), getTechs(), getPeople(), getTickets(), requireSession()]);
   if (!result) notFound();
-  const pendingRoutingSuggestion = await getPendingRoutingSuggestion(result.ticket.id);
-  return <TicketDetailView initialTicket={result.ticket} initialTimeline={result.timeline} sites={sites} techs={techs} people={people} mergeCandidates={allTickets.filter((ticket) => ticket.id !== result.ticket.id && isActiveTicket(ticket))} currentUserEmail={session.email} currentUserRole={session.role} pendingRoutingSuggestion={pendingRoutingSuggestion?.site ? { id: pendingRoutingSuggestion.id, site: pendingRoutingSuggestion.site } : null} />;
+  const [pendingRoutingSuggestion, mergedTickets] = await Promise.all([
+    getPendingRoutingSuggestion(result.ticket.id),
+    getMergedTickets(result.ticket.id),
+  ]);
+  return <TicketDetailView initialTicket={result.ticket} initialTimeline={result.timeline} initialMergedTickets={mergedTickets} sites={sites} techs={techs} people={people} mergeCandidates={allTickets.filter((ticket) => ticket.id !== result.ticket.id && isActiveTicket(ticket))} currentUserEmail={session.email} currentUserRole={session.role} pendingRoutingSuggestion={pendingRoutingSuggestion?.site ? { id: pendingRoutingSuggestion.id, site: pendingRoutingSuggestion.site } : null} />;
 }

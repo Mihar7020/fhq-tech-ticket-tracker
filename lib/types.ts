@@ -71,6 +71,7 @@ export type Ticket = {
   fields: ExtractedField[];
   routingReason: string;
   flags?: string[];
+  mergedIntoNumber?: string;
   recurrence?: { count: number; median: string; fixes: string[] };
 };
 export type TimelineEvent = {

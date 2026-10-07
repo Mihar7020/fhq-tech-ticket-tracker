@@ -80,6 +80,7 @@ export function mapTicket(row: TicketRow): Ticket {
     fields: [],
     routingReason: row.site ? `Routed to ${row.site.name}.` : "School has not been assigned yet.",
     flags: row.status === "MERGED" && row.mergedInto ? [`Merged into ${row.mergedInto.publicId}`] : undefined,
+    mergedIntoNumber: row.status === "MERGED" ? row.mergedInto?.publicId : undefined,
   };
 }
 
@@ -93,6 +94,16 @@ export async function getTicket(id: string) {
   if (!hasDatabase()) return null;
   const row = await db.ticket.findFirst({ where: { OR: [{ id }, { publicId: id }] }, include: ticketInclude });
   return row ? { ticket: mapTicket(row), timeline: mapTimeline(row) } : null;
+}
+
+export async function getMergedTickets(ticketId: string) {
+  if (!hasDatabase()) return [];
+  const rows = await db.ticket.findMany({
+    where: { mergedIntoId: ticketId },
+    include: ticketInclude,
+    orderBy: { createdAt: "asc" },
+  });
+  return rows.map((row) => ({ ticket: mapTicket(row), timeline: mapTimeline(row) }));
 }
 
 export async function getPendingRoutingSuggestion(ticketId: string) {
