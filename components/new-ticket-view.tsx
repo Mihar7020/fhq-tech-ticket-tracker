@@ -23,7 +23,8 @@ export function NewTicketView({ sites, techs }: { sites: Site[]; techs: Tech[] }
   const [assignee, setAssignee] = useState("");
   const [details, setDetails] = useState("");
   const [saving, setSaving] = useState(false);
-  const canSave = subject.trim().length > 3 && requester.trim().length > 1 && details.trim().length > 5;
+  const requesterEmailValid = /^\S+@\S+\.\S+$/.test(requesterEmail.trim());
+  const canSave = subject.trim().length > 3 && requester.trim().length > 1 && requesterEmailValid && details.trim().length > 5;
 
   async function saveTicket() {
     if (!canSave || saving) return;
@@ -65,8 +66,9 @@ export function NewTicketView({ sites, techs }: { sites: Site[]; techs: Tech[] }
                 <input className="input" value={requester} onChange={(event) => setRequester(event.target.value)} placeholder="Staff name" />
               </label>
               <label>
-                <span className="label mb-2 block">Requester email <span className="muted normal-case">(optional)</span></span>
-                <input className="input" type="email" value={requesterEmail} onChange={(event) => setRequesterEmail(event.target.value)} placeholder="name@fhqtc.net" />
+                <span className="label mb-2 block">Requester email</span>
+                <input className="input" type="email" required value={requesterEmail} onChange={(event) => setRequesterEmail(event.target.value)} placeholder="name@fhqtc.net" />
+                <span className="muted mt-1 block text-[10px]">Required so public comments can be emailed to the requester.</span>
               </label>
             </div>
             <div className="grid gap-4 md:grid-cols-2">

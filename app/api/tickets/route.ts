@@ -7,7 +7,7 @@ import { priorityToDb, statusToDb } from "@/lib/ticket-data";
 const createSchema = z.object({
   subject: z.string().trim().min(4).max(500),
   requester: z.string().trim().min(2).max(200),
-  requesterEmail: z.string().trim().email().optional().or(z.literal("")),
+  requesterEmail: z.string().trim().email(),
   siteId: z.string().min(1),
   priority: z.enum(["Critical", "High", "Normal", "Low"]),
   status: z.enum(["New", "Triage", "In progress", "Waiting on requester", "Waiting on IT", "Resolved"]),
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const team = await db.team.findUnique({ where: { slug: "fhq-tech" } });
   const actor = await db.user.findUnique({ where: { email: session.email.toLowerCase() } });
   const temporaryPublicId = `pending-${randomUUID()}`;
-  const requesterEmail = input.requesterEmail || "manual-request@fhqtc.local";
+  const requesterEmail = input.requesterEmail.toLowerCase();
 
   const ticket = await db.$transaction(async (tx) => {
     const created = await tx.ticket.create({
