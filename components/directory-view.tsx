@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Download, Link2, Plus, Search, Trash2, Upload, UserRoundCog, Users, X } from "lucide-react";
+import { ChevronDown, Download, Link2, Pencil, Plus, Search, Trash2, Upload, UserRoundCog, Users, X } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { SiteBadge } from "@/components/site-badge";
 import { escapeCsvCell } from "@/lib/csv-import";
@@ -15,6 +15,7 @@ export function DirectoryView({ initialPeople, sites }: { initialPeople: Person[
   const [siteFilter, setSiteFilter] = useState("all");
   const [tab, setTab] = useState<"people" | "schools">("people");
   const [addOpen, setAddOpen] = useState(false);
+  const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const { toast } = useApp();
   const filtered = useMemo(() => people.filter((person) => `${person.name} ${person.email} ${person.role}`.toLowerCase().includes(query.toLowerCase()) && (siteFilter === "all" || person.siteId === siteFilter)), [people, query, siteFilter]);
 
@@ -76,16 +77,17 @@ export function DirectoryView({ initialPeople, sites }: { initialPeople: Person[
           )}
         </div>
 
-        {tab === "people" && <PeopleTable people={filtered} clearFilters={() => { setQuery(""); setSiteFilter("all"); }} onDelete={async (person) => { if (!window.confirm(`Remove ${person.name} from the directory? Records with ticket history will be deactivated instead.`)) return; const response = await fetch(`/api/people/${person.id}`, { method: "DELETE" }); if (!response.ok) { toast("Could not remove this person"); return; } const result = await response.json() as { action: string }; setPeople((current) => result.action === "deleted" ? current.filter((item) => item.id !== person.id) : current.map((item) => item.id === person.id ? { ...item, active: false } : item)); toast(result.action === "deleted" ? "Person deleted" : "Person deactivated to preserve ticket history"); }} />}
+        {tab === "people" && <PeopleTable people={filtered} clearFilters={() => { setQuery(""); setSiteFilter("all"); }} onEdit={setEditingPerson} onDelete={async (person) => { if (!window.confirm(`Remove ${person.name} from the directory? Records with ticket history will be deactivated instead.`)) return; const response = await fetch(`/api/people/${person.id}`, { method: "DELETE" }); if (!response.ok) { toast("Could not remove this person"); return; } const result = await response.json() as { action: string }; setPeople((current) => result.action === "deleted" ? current.filter((item) => item.id !== person.id) : current.map((item) => item.id === person.id ? { ...item, active: false } : item)); toast(result.action === "deleted" ? "Person deleted" : "Person deactivated to preserve ticket history"); }} />}
         {tab === "schools" && <SchoolCards sites={sites} people={people} />}
       </section>
 
       {addOpen && <AddPersonDialog sites={sites} onClose={() => setAddOpen(false)} onCreated={(person) => { setPeople((current) => [...current, person].sort((a, b) => a.name.localeCompare(b.name))); setAddOpen(false); toast("Person added"); }} />}
+      {editingPerson && <EditPersonDialog person={editingPerson} sites={sites} onClose={() => setEditingPerson(null)} onUpdated={(person) => { setPeople((current) => current.map((item) => item.id === person.id ? person : item).sort((a, b) => a.name.localeCompare(b.name))); setEditingPerson(null); toast("Staff details updated"); }} />}
     </div>
   );
 }
 
-function PeopleTable({ people, clearFilters, onDelete }: { people: Person[]; clearFilters: () => void; onDelete: (person: Person) => void }) {
+function PeopleTable({ people, clearFilters, onEdit, onDelete }: { people: Person[]; clearFilters: () => void; onEdit: (person: Person) => void; onDelete: (person: Person) => void }) {
   if (!people.length) {
     return <div className="p-12 text-center"><UserRoundCog className="gold mx-auto mb-4" /><h2 className="display text-2xl">No people match.</h2><button className="btn mt-4" onClick={clearFilters}>Clear filters</button></div>;
   }
@@ -102,7 +104,7 @@ function PeopleTable({ people, clearFilters, onDelete }: { people: Person[]; cle
               <td className="p-4"><strong>{person.role}</strong><p className="muted mt-0.5">{person.department}</p></td>
               <td className="p-4"><span className="chip"><Link2 size={11} />{person.aliases.length}</span></td>
               <td className="p-4"><span className={`flex items-center gap-1.5 ${person.active ? "text-[var(--green)]" : "muted"}`}><span className={`h-1.5 w-1.5 rounded-full ${person.active ? "bg-[var(--green)]" : "bg-[var(--line-strong)]"}`} />{person.active ? "Active" : "Inactive"}</span></td>
-              <td className="p-4"><button onClick={() => onDelete(person)} className="btn icon-btn h-8 min-h-8 w-8" aria-label={`Delete ${person.name}`}><Trash2 size={14} /></button></td>
+              <td className="p-4"><div className="flex justify-end gap-2"><button onClick={() => onEdit(person)} className="btn icon-btn h-8 min-h-8 w-8" aria-label={`Edit ${person.name}`} title="Edit staff details"><Pencil size={14} /></button><button onClick={() => onDelete(person)} className="btn icon-btn h-8 min-h-8 w-8" aria-label={`Delete ${person.name}`} title="Delete or deactivate"><Trash2 size={14} /></button></div></td>
             </tr>
           ))}
         </tbody>
@@ -154,4 +156,73 @@ function AddPersonDialog({ sites, onClose, onCreated }: { sites: Site[]; onClose
   }
   const field = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
   return <div className="fixed inset-0 z-[100] grid place-items-center bg-black/35 p-4"><form onSubmit={submit} className="card w-full max-w-xl p-5"><div className="mb-5 flex items-center justify-between"><div><p className="label">Directory</p><h2 className="display mt-1 text-2xl">Add person</h2></div><button type="button" onClick={onClose} className="btn icon-btn" aria-label="Close"><X size={16} /></button></div><div className="grid gap-4 sm:grid-cols-2"><label><span className="label mb-2 block">Full name</span><input required className="input" value={form.name} onChange={(event) => field("name", event.target.value)} /></label><label><span className="label mb-2 block">Email</span><input required type="email" className="input" value={form.email} onChange={(event) => field("email", event.target.value)} /></label><label><span className="label mb-2 block">School</span><select className="input" value={form.siteId} onChange={(event) => field("siteId", event.target.value)}>{sites.map((site) => <option key={site.id} value={site.id}>{site.code} - {site.name}</option>)}</select></label><label><span className="label mb-2 block">Role</span><input className="input" value={form.role} onChange={(event) => field("role", event.target.value)} /></label><label><span className="label mb-2 block">Department</span><input className="input" value={form.department} onChange={(event) => field("department", event.target.value)} /></label><label><span className="label mb-2 block">Phone</span><input className="input" value={form.phone} onChange={(event) => field("phone", event.target.value)} /></label></div><div className="mt-5 flex justify-end gap-2"><button type="button" className="btn" onClick={onClose}>Cancel</button><button disabled={saving} className="btn btn-primary">{saving ? "Saving..." : "Add person"}</button></div></form></div>;
+}
+
+function EditPersonDialog({ person, sites, onClose, onUpdated }: { person: Person; sites: Site[]; onClose: () => void; onUpdated: (person: Person) => void }) {
+  const [form, setForm] = useState({
+    name: person.name,
+    email: person.email,
+    aliases: person.aliases.join(", "),
+    siteId: person.siteId || "",
+    role: person.role,
+    department: person.department,
+    phone: person.phone,
+    active: person.active,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !saving) onClose();
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose, saving]);
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    const aliases = form.aliases.split(/[;,\n]/).map((email) => email.trim()).filter(Boolean);
+    const response = await fetch(`/api/people/${person.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...form, siteId: form.siteId || null, aliases }),
+    });
+    const result = await response.json().catch(() => null) as { person?: Person; error?: string; email?: string } | null;
+    setSaving(false);
+    if (!response.ok || !result?.person) {
+      setError(result?.error === "email_in_use" ? `${result.email || "That email"} already belongs to another staff member.` : "Could not save these staff details. Check the email fields and try again.");
+      return;
+    }
+    onUpdated(result.person);
+  }
+
+  const field = (key: "name" | "email" | "aliases" | "siteId" | "role" | "department" | "phone", value: string) => setForm((current) => ({ ...current, [key]: value }));
+
+  return (
+    <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/35 p-4" role="dialog" aria-modal="true" aria-labelledby="edit-person-title">
+      <div className="grid min-h-full place-items-center">
+        <form onSubmit={submit} className="card w-full max-w-xl p-5">
+          <div className="mb-5 flex items-center justify-between gap-4">
+            <div><p className="label">Directory</p><h2 id="edit-person-title" className="display mt-1 text-2xl">Edit staff details</h2></div>
+            <button type="button" onClick={onClose} disabled={saving} className="btn icon-btn" aria-label="Close"><X size={16} /></button>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label><span className="label mb-2 block">Full name</span><input autoFocus required disabled={saving} className="input" value={form.name} onChange={(event) => field("name", event.target.value)} /></label>
+            <label><span className="label mb-2 block">Primary email</span><input required disabled={saving} type="email" className="input" value={form.email} onChange={(event) => field("email", event.target.value)} /></label>
+            <label className="sm:col-span-2"><span className="label mb-2 block">Other email aliases</span><textarea disabled={saving} className="input min-h-20 resize-y" value={form.aliases} onChange={(event) => field("aliases", event.target.value)} placeholder="name@fhqtc.net, name@school.ca" /><span className="muted mt-1.5 block text-[11px]">Separate multiple addresses with commas, semicolons, or new lines.</span></label>
+            <label><span className="label mb-2 block">School</span><select disabled={saving} className="input" value={form.siteId} onChange={(event) => field("siteId", event.target.value)}><option value="">Unassigned</option>{sites.map((site) => <option key={site.id} value={site.id}>{site.code} - {site.name}</option>)}</select></label>
+            <label><span className="label mb-2 block">Role</span><input disabled={saving} className="input" value={form.role} onChange={(event) => field("role", event.target.value)} /></label>
+            <label><span className="label mb-2 block">Department</span><input disabled={saving} className="input" value={form.department} onChange={(event) => field("department", event.target.value)} /></label>
+            <label><span className="label mb-2 block">Phone</span><input disabled={saving} className="input" value={form.phone} onChange={(event) => field("phone", event.target.value)} /></label>
+            <label className="sm:col-span-2 flex items-center gap-3 rounded-lg border divider p-3"><input disabled={saving} type="checkbox" checked={form.active} onChange={(event) => setForm((current) => ({ ...current, active: event.target.checked }))} /><span><strong className="block text-xs">Active staff member</strong><span className="muted text-[11px]">Inactive records stay available for ticket history.</span></span></label>
+          </div>
+          {error && <p className="mt-4 rounded-lg border border-[var(--red)]/25 bg-[var(--red)]/5 px-3 py-2 text-xs text-[var(--red)]" role="alert">{error}</p>}
+          <div className="mt-5 flex justify-end gap-2"><button type="button" disabled={saving} className="btn" onClick={onClose}>Cancel</button><button disabled={saving} className="btn btn-primary">{saving ? "Saving..." : "Save changes"}</button></div>
+        </form>
+      </div>
+    </div>
+  );
 }
