@@ -96,7 +96,7 @@ export function SchoolTicketPrintList({ site, tickets }: { site: Site; tickets: 
                 <div><dt className="font-bold">Affected</dt><dd>{ticket.affected}</dd></div>
                 <div><dt className="font-bold">Requester email</dt><dd>{ticket.requesterEmail}</dd></div>
               </dl>
-              <div className="mt-4"><h3 className="text-sm font-bold">Summary</h3><p className="mt-1 whitespace-pre-wrap text-sm leading-6">{ticket.digest}</p></div>
+              <div className="mt-4"><h3 className="text-sm font-bold">Summary</h3><p className="mt-1 whitespace-pre-wrap text-sm leading-6">{ticket.originalEmail}</p></div>
               <div className="mt-5 border-t border-black pt-3"><p className="text-sm font-bold">Visit notes</p><div className="mt-5 border-b border-black" /><div className="mt-7 border-b border-black" /></div>
             </article>
           ))}
