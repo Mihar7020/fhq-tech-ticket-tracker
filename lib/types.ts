@@ -76,6 +76,10 @@ export type Ticket = {
   flags?: string[];
   mergedIntoNumber?: string;
   recurrence?: { count: number; median: string; fixes: string[] };
+  /** Set while a requester reply has reopened the ticket and nobody has answered yet. */
+  reopenedBy?: { name: string; at: string; replyId?: string };
+  /** The requester replied after the team's last public reply. */
+  awaitingReply?: boolean;
 };
 export type TimelineEvent = {
   id: string;
@@ -86,4 +90,7 @@ export type TimelineEvent = {
   at: string;
   internal?: boolean;
   attachments?: AttachmentInfo[];
+  /** ISO timestamp, used for ordering and day grouping. */
+  sentAt?: string;
+  role?: "requester" | "team" | "note" | "system";
 };

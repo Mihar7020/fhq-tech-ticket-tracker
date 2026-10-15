@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import type { AttachmentInfo, Person, Site, Tech, Ticket, TicketStatus, TimelineEvent } from "@/lib/types";
+import { describeAudit, formatWhen, replyState } from "@/lib/ticket-activity";
 import { sites as coreSites, techs as coreTechs } from "@/lib/demo-data";
 
 // The helpdesk's own addresses are on every email, so they're hidden from the recipient lists.
@@ -82,6 +83,7 @@ export function mapTicket(row: TicketRow): Ticket {
     routingReason: row.site ? `Routed to ${row.site.name}.` : "School has not been assigned yet.",
     flags: row.status === "MERGED" && row.mergedInto ? [`Merged into ${row.mergedInto.publicId}`] : undefined,
     mergedIntoNumber: row.status === "MERGED" ? row.mergedInto?.publicId : undefined,
+    ...replyState(row.messages, row.auditEvents, row.status),
   };
 }
 
@@ -120,20 +122,31 @@ const toAttachments = (rows: { id: string; filename: string; contentType: string
   rows.map((row) => ({ id: row.id, filename: row.filename, contentType: row.contentType, sizeBytes: row.sizeBytes, contentId: row.contentId ?? undefined }));
 
 function mapTimeline(row: TicketRow): TimelineEvent[] {
-  const messages: TimelineEvent[] = row.messages.map((message) => ({
-    id: message.id,
-    kind: message.direction === "INTERNAL" ? "note" : "email",
-    actor: message.fromName || message.fromAddress,
-    title: message.direction === "INTERNAL" ? "Internal note" : message.direction === "OUTBOUND" ? "Public comment" : "Request received",
-    body: message.textBody || "",
-    attachments: message.direction === "INBOUND" ? toAttachments(message.attachments) : [],
-    at: relative(message.sentAt),
-    internal: message.direction === "INTERNAL",
-  }));
+  const firstId = row.messages[0]?.id;
+  const messages: TimelineEvent[] = row.messages.map((message) => {
+    const actor = message.fromName || message.fromAddress;
+    const role = message.direction === "INTERNAL" ? "note" : message.direction === "OUTBOUND" ? "team" : "requester";
+    return {
+      id: message.id,
+      kind: message.direction === "INTERNAL" ? "note" : "email",
+      actor,
+      title: role === "note" ? "Internal note" : role === "team" ? `Reply sent by ${actor}` : message.id === firstId ? "Original request" : `Reply from ${actor}`,
+      body: message.textBody || "",
+      attachments: message.direction === "INBOUND" ? toAttachments(message.attachments) : [],
+      at: formatWhen(message.sentAt),
+      sentAt: message.sentAt.toISOString(),
+      role,
+      internal: message.direction === "INTERNAL",
+    } satisfies TimelineEvent;
+  });
   const audits: TimelineEvent[] = row.auditEvents
-    .filter((event) => !["EMAIL_INGESTED", "OUTBOUND_COMMENT", "INTERNAL_NOTE"].includes(event.action))
-    .map((event) => ({ id: event.id, kind: "status", actor: event.actor?.name || "FHQ Tech", title: event.action.replaceAll("_", " ").toLowerCase().replace(/^./, (c) => c.toUpperCase()), body: (event.after && typeof event.after === "object" && "note" in event.after && typeof event.after.note === "string") ? event.after.note : "Ticket updated.", at: relative(event.createdAt), internal: true }));
-  return [...messages, ...audits].sort((a, b) => a.at.localeCompare(b.at));
+    .filter((event) => !["EMAIL_INGESTED", "OUTBOUND_COMMENT", "INTERNAL_NOTE", "EMAIL_WELDED", "OUTBOUND_REPLY_SENT"].includes(event.action))
+    .map((event) => {
+      const { title, body } = describeAudit(event.action, event.before, event.after);
+      return { id: event.id, kind: "status", actor: event.actor?.name || "System", title, body, at: formatWhen(event.createdAt), sentAt: event.createdAt.toISOString(), role: "system" } satisfies TimelineEvent;
+    });
+  // Newest first, by the real time (not by the display text).
+  return [...messages, ...audits].sort((x, y) => (y.sentAt ?? "").localeCompare(x.sentAt ?? ""));
 }
 
 export async function getSites(): Promise<Site[]> {

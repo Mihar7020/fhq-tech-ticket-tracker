@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { ReplyTag } from "@/components/reply-markers";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, BookmarkPlus, GripVertical, LayoutDashboard, Printer, SlidersHorizontal } from "lucide-react";
@@ -144,7 +145,7 @@ export function BoardView({ sites, initialTickets }: { sites: Site[]; initialTic
                           <Link href={`/tickets/${ticket.id}`} className="mt-1.5 block font-semibold leading-snug hover:text-[var(--gold-bright)]">{ticket.subject}</Link>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between gap-2"><SiteBadge siteId={ticket.siteId} compact /><StatusBadge status={ticket.status} /></div>
+                      <div className="flex items-center justify-between gap-2"><SiteBadge siteId={ticket.siteId} compact /><span className="flex items-center gap-1.5"><ReplyTag ticket={ticket} /><StatusBadge status={ticket.status} /></span></div>
                       <div className="mt-3 flex items-center justify-between border-t divider pt-2 text-[10px] muted"><span>{ticket.requester}</span><span>{ticket.assignee?.split(" ")[0] ?? "Unassigned"}</span></div>
                     </motion.article>
                   )) : (

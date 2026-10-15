@@ -3,9 +3,11 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronDown, Clock3, Merge, MessageSquareText, Pencil, Save, Send, StickyNote, Trash2, UserCheck, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Merge, Pencil, Save, Send, StickyNote, Trash2, UserCheck, X } from "lucide-react";
 import { CcPicker } from "@/components/cc-picker";
 import { EmailBody } from "@/components/email-body";
+import { TicketTimeline } from "@/components/ticket-timeline";
+import { ReplyBanner, ReplyTag } from "@/components/reply-markers";
 import { replyRecipients } from "@/lib/reply-recipients";
 import { fillTemplate, replyTemplates } from "@/lib/reply-templates";
 import { AnimatePresence, motion } from "framer-motion";
@@ -175,8 +177,9 @@ export function TicketDetailView({ initialTicket, initialTimeline, initialMerged
     const response = await fetch(`/api/tickets/${ticket.id}/comments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: message, internal, cc: internal ? [] : ccList }) });
     setSaving(false); if (!response.ok) { toast("Could not save the comment"); return; }
     const result = await response.json() as { id?: string; emailStatus?: "not_attempted" | "sent" | "failed" };
-    setTimeline((current) => [...current, { id: result.id ?? `local-${Date.now()}`, kind: internal ? "note" : "email", actor: "You", title: internal ? "Internal note" : "Public comment", body: message, at: "Just now", internal }]);
+    setTimeline((current) => [...current, { id: result.id ?? `local-${Date.now()}`, kind: internal ? "note" : "email", actor: "You", title: internal ? "Internal note" : "Reply sent by you", body: message, at: "Just now", sentAt: new Date().toISOString(), role: internal ? "note" : "team", internal }]);
     toast(internal ? "Internal note saved" : result.emailStatus === "failed" ? "Comment saved, but email reply failed" : result.emailStatus === "sent" ? "Comment saved and emailed" : "Public comment added"); setMessage(""); setCcList(replyRecipients(ticket, mergedTicketList));
+    if (!internal) setTicket((current) => ({ ...current, reopenedBy: undefined, awaitingReply: false }));
     if (!internal && waitAfterSend && ticket.status !== "Waiting on requester") await updateStatus("Waiting on requester");
     setWaitAfterSend(false);
   }
@@ -229,6 +232,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, initialMerged
               </label>
             )}
             <StatusBadge status={ticket.status} />
+            <ReplyTag ticket={ticket} />
             <PriorityBadge priority={ticket.priority} />
           </div>
           <h1 className="display max-w-4xl text-[clamp(1.8rem,3.8vw,3.1rem)] leading-tight">{ticket.subject}</h1>
@@ -265,6 +269,8 @@ export function TicketDetailView({ initialTicket, initialTimeline, initialMerged
           </label>
         </div>
       </header>
+
+      <ReplyBanner ticket={ticket} />
 
       {routingSuggestion && !ticket.siteId ? (
         <section className="card mb-5 flex flex-col gap-3 border-[color:rgba(37,107,115,.35)] bg-[color:rgba(37,107,115,.08)] p-4 sm:flex-row sm:items-center sm:justify-between" role="status">
@@ -455,34 +461,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, initialMerged
             </div>
           </section>
 
-          <section className="card overflow-hidden">
-            <div className="flex items-center justify-between border-b divider px-5 py-4">
-              <div>
-                <p className="label">History</p>
-                <h2 className="display mt-1 text-xl">Timeline</h2>
-              </div>
-              <Clock3 size={18} className="muted" />
-            </div>
-            <div className="p-5">
-              {timeline.map((event, index) => (
-                <div key={event.id} className="relative grid grid-cols-[24px_1fr] gap-3 pb-6 last:pb-0">
-                  <div className="relative">
-                    <span className="relative z-10 grid h-6 w-6 place-items-center rounded-full border divider bg-[var(--ink-3)] text-[var(--gold-bright)]"><MessageSquareText size={11} /></span>
-                    {index < timeline.length - 1 && <span className="absolute left-3 top-6 h-[calc(100%-10px)] w-px bg-[var(--line)]" />}
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <strong className="text-xs">{event.title}</strong>
-                      {event.internal && <span className="chip text-[9px]">Internal</span>}
-                      <span className="ml-auto text-[10px] muted">{event.at}</span>
-                    </div>
-                    {event.kind === "email" ? <EmailBody text={event.body} attachments={event.attachments} compact className="muted mt-1" /> : <p className="muted mt-1 text-xs leading-relaxed">{event.body}</p>}
-                    <p className="mt-1 text-[10px] muted">by {event.actor.replace("Time to Doom", "System")}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
+          <TicketTimeline events={timeline} />
         </div>
 
         <aside className="space-y-5">

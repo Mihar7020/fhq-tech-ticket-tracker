@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ReplyTag } from "@/components/reply-markers";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 import { SiteBadge } from "@/components/site-badge";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
@@ -24,11 +25,11 @@ export function TicketRow({ ticket, compact = false }: { ticket: Ticket; compact
           </div>
         </div>
       </div>
-      <div className="hidden sm:block"><StatusBadge status={ticket.status} /></div>
+      <div className="hidden flex-wrap items-center gap-1.5 sm:flex"><StatusBadge status={ticket.status} /><ReplyTag ticket={ticket} /></div>
       <div className="hidden sm:block"><PriorityBadge priority={ticket.priority} /></div>
       <div className="hidden truncate text-xs muted sm:block">{ticket.assignee?.split(" ")[0] ?? "Unassigned"}</div>
       <ChevronRight size={16} className="muted hidden transition-transform group-hover:translate-x-1 sm:block" />
-      <div className="flex items-center justify-between sm:hidden"><StatusBadge status={ticket.status} /><span className="text-xs muted">{ticket.assignee?.split(" ")[0] ?? "Unassigned"}</span></div>
+      <div className="flex items-center justify-between sm:hidden"><span className="flex items-center gap-1.5"><StatusBadge status={ticket.status} /><ReplyTag ticket={ticket} /></span><span className="text-xs muted">{ticket.assignee?.split(" ")[0] ?? "Unassigned"}</span></div>
     </Link>
   );
 }
