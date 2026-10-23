@@ -62,6 +62,8 @@ export function mapTicket(row: TicketRow): Ticket {
     requesterCc: visibleRecipients(firstMessage?.ccAddresses),
     requesterRole: row.person?.roleTitle || "Staff",
     siteId: row.siteId ?? undefined,
+    siteCode: row.site?.code ?? undefined,
+    siteName: row.site?.name ?? undefined,
     status: statusFromDb[row.status] ?? "New",
     priority: priorityFromDb[row.priority],
     assignee: row.assignee?.name,

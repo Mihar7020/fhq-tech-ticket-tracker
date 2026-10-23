@@ -77,7 +77,7 @@ export function DirectoryView({ initialPeople, sites }: { initialPeople: Person[
           )}
         </div>
 
-        {tab === "people" && <PeopleTable people={filtered} clearFilters={() => { setQuery(""); setSiteFilter("all"); }} onEdit={setEditingPerson} onDelete={async (person) => { if (!window.confirm(`Remove ${person.name} from the directory? Records with ticket history will be deactivated instead.`)) return; const response = await fetch(`/api/people/${person.id}`, { method: "DELETE" }); if (!response.ok) { toast("Could not remove this person"); return; } const result = await response.json() as { action: string }; setPeople((current) => result.action === "deleted" ? current.filter((item) => item.id !== person.id) : current.map((item) => item.id === person.id ? { ...item, active: false } : item)); toast(result.action === "deleted" ? "Person deleted" : "Person deactivated to preserve ticket history"); }} />}
+        {tab === "people" && <PeopleTable sites={sites} people={filtered} clearFilters={() => { setQuery(""); setSiteFilter("all"); }} onEdit={setEditingPerson} onDelete={async (person) => { if (!window.confirm(`Remove ${person.name} from the directory? Records with ticket history will be deactivated instead.`)) return; const response = await fetch(`/api/people/${person.id}`, { method: "DELETE" }); if (!response.ok) { toast("Could not remove this person"); return; } const result = await response.json() as { action: string }; setPeople((current) => result.action === "deleted" ? current.filter((item) => item.id !== person.id) : current.map((item) => item.id === person.id ? { ...item, active: false } : item)); toast(result.action === "deleted" ? "Person deleted" : "Person deactivated to preserve ticket history"); }} />}
         {tab === "schools" && <SchoolCards sites={sites} people={people} />}
       </section>
 
@@ -87,7 +87,7 @@ export function DirectoryView({ initialPeople, sites }: { initialPeople: Person[
   );
 }
 
-function PeopleTable({ people, clearFilters, onEdit, onDelete }: { people: Person[]; clearFilters: () => void; onEdit: (person: Person) => void; onDelete: (person: Person) => void }) {
+function PeopleTable({ people, sites, clearFilters, onEdit, onDelete }: { people: Person[]; sites: Site[]; clearFilters: () => void; onEdit: (person: Person) => void; onDelete: (person: Person) => void }) {
   if (!people.length) {
     return <div className="p-12 text-center"><UserRoundCog className="gold mx-auto mb-4" /><h2 className="display text-2xl">No people match.</h2><button className="btn mt-4" onClick={clearFilters}>Clear filters</button></div>;
   }
@@ -100,7 +100,7 @@ function PeopleTable({ people, clearFilters, onEdit, onDelete }: { people: Perso
           {people.map((person) => (
             <tr key={person.id} className="border-b divider transition hover:bg-[var(--ink-3)]/55">
               <td className="p-4 pl-5"><div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-full bg-[var(--gold-soft)] text-[10px] font-black gold">{person.name.split(" ").map((part) => part[0]).join("")}</span><div><strong>{person.name}</strong><p className="muted mt-0.5">{person.email}</p></div></div></td>
-              <td className="p-4"><SiteBadge siteId={person.siteId} compact /></td>
+              <td className="p-4"><SiteBadge siteId={person.siteId} sites={sites} compact /></td>
               <td className="p-4"><strong>{person.role}</strong><p className="muted mt-0.5">{person.department}</p></td>
               <td className="p-4"><span className="chip"><Link2 size={11} />{person.aliases.length}</span></td>
               <td className="p-4"><span className={`flex items-center gap-1.5 ${person.active ? "text-[var(--green)]" : "muted"}`}><span className={`h-1.5 w-1.5 rounded-full ${person.active ? "bg-[var(--green)]" : "bg-[var(--line-strong)]"}`} />{person.active ? "Active" : "Inactive"}</span></td>

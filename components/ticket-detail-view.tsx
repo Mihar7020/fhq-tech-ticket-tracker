@@ -221,7 +221,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, initialMerged
         <div>
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs muted">{ticket.number}</span>
-            {ticket.siteId ? <SiteBadge siteId={ticket.siteId} /> : (
+            {ticket.siteId ? <SiteBadge siteId={ticket.siteId} sites={sites} /> : (
               <label className="relative block">
                 <span className="sr-only">Assign school</span>
                 <select value={ticket.siteId ?? ""} onChange={(event) => void updateSite(event.target.value)} className="chip h-8 appearance-none bg-[var(--ink-2)] pl-3 pr-8 text-xs font-semibold">

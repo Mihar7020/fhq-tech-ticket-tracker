@@ -80,6 +80,9 @@ export type Ticket = {
   reopenedBy?: { name: string; at: string; replyId?: string };
   /** The requester replied after the team's last public reply. */
   awaitingReply?: boolean;
+  /** The assigned school as stored in the database, for display. */
+  siteCode?: string;
+  siteName?: string;
 };
 export type TimelineEvent = {
   id: string;

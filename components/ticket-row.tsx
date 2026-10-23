@@ -19,7 +19,7 @@ export function TicketRow({ ticket, compact = false }: { ticket: Ticket; compact
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] muted">
             <span>{ticket.requester}</span>
             <span aria-hidden>-</span>
-            <SiteBadge siteId={ticket.siteId} compact />
+            <SiteBadge siteId={ticket.siteId} site={ticket.siteCode ? { code: ticket.siteCode, name: ticket.siteName ?? ticket.siteCode } : undefined} compact />
             <span className="hidden md:inline">{ticket.updatedAt}</span>
             {ticket.flags?.slice(0, 1).map((flag) => <span key={flag} className="danger flex items-center gap-1"><AlertTriangle size={10} />{flag}</span>)}
           </div>
