@@ -3,10 +3,11 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronDown, Merge, Pencil, Save, Send, StickyNote, Trash2, UserCheck, X } from "lucide-react";
+import { Check, ChevronDown, Merge, Pencil, Save, Send, StickyNote, Trash2, UserCheck, X } from "lucide-react";
 import { CcPicker } from "@/components/cc-picker";
 import { EmailBody } from "@/components/email-body";
 import { TicketTimeline } from "@/components/ticket-timeline";
+import { TicketNav } from "@/components/ticket-nav";
 import { ReplyBanner, ReplyTag } from "@/components/reply-markers";
 import { replyRecipients } from "@/lib/reply-recipients";
 import { fillTemplate, replyTemplates } from "@/lib/reply-templates";
@@ -209,7 +210,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, initialMerged
   return (
     <div className="page-wrap max-w-[1280px]">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <Link href="/tickets" className="flex items-center gap-2 text-xs font-semibold muted hover:text-[var(--text)]"><ArrowLeft size={15} /> Tickets</Link>
+        <TicketNav ticketId={ticket.id} />
         <div className="flex items-center gap-2">
           <button className="btn text-xs" onClick={() => setMergeOpen((value) => !value)}><Merge size={14} /> Merge</button>
           <button className="btn text-xs danger" disabled={voiding} onClick={voidTicket}><Trash2 size={14} /> {voiding ? "Voiding..." : "Void"}</button>

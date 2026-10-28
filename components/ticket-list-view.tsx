@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronDown, Plus, Search } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { TicketRow } from "@/components/ticket-row";
 import { isActiveTicket } from "@/lib/ticket-status";
+import { DEFAULT_FILTERS, LIST_CONTEXT_KEY, SAVED_FILTERS_KEY, describeFilters, filtersToSearch, isDefaultFilters, type TicketFilters } from "@/lib/ticket-filters";
 import type { Site, Tech, Ticket } from "@/lib/types";
 
 function FilterSelect({ value, onChange, label, children }: { value: string; onChange: (value: string) => void; label: string; children: React.ReactNode }) {
@@ -20,11 +22,30 @@ function FilterSelect({ value, onChange, label, children }: { value: string; onC
   );
 }
 
-export function TicketListView({ tickets, sites, techs }: { tickets: Ticket[]; sites: Site[]; techs: Tech[] }) {
-  const [query, setQuery] = useState("");
-  const [site, setSite] = useState("all");
-  const [status, setStatus] = useState("open");
-  const [tech, setTech] = useState("all");
+export function TicketListView({ tickets, sites, techs, initialFilters = null }: { tickets: Ticket[]; sites: Site[]; techs: Tech[]; initialFilters?: TicketFilters | null }) {
+  const start = initialFilters ?? DEFAULT_FILTERS;
+  const [query, setQuery] = useState(start.query);
+  const [site, setSite] = useState(start.site);
+  const [status, setStatus] = useState(start.status);
+  const [tech, setTech] = useState(start.tech);
+  const restored = useRef(false);
+
+  const router = useRouter();
+
+  // Opened without filters in the address (sidebar link): jump to the last view used in this browser.
+  useEffect(() => {
+    if (!initialFilters) {
+      try {
+        const saved = JSON.parse(window.localStorage.getItem(SAVED_FILTERS_KEY) ?? "null") as TicketFilters | null;
+        const validSite = saved && (saved.site === "all" || saved.site === "unrouted" || sites.some((item) => item.id === saved.site));
+        if (saved && validSite && !isDefaultFilters(saved)) { router.replace(`/tickets${filtersToSearch(saved, sites)}`); return; }
+      } catch { /* storage blocked or corrupt: keep defaults */ }
+    }
+    restored.current = true;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on open
+  }, []);
+
+  function resetFilters() { setQuery(""); setSite("all"); setStatus("open"); setTech("all"); }
 
   const filtered = useMemo(() => tickets.filter((ticket) => {
     const searchable = `${ticket.number} ${ticket.subject} ${ticket.requester} ${ticket.category} ${ticket.service}`.toLowerCase();
@@ -34,6 +55,19 @@ export function TicketListView({ tickets, sites, techs }: { tickets: Ticket[]; s
     const matchesTech = tech === "all" || ticket.assignee === tech || (tech === "unassigned" && !ticket.assignee);
     return matchesQuery && matchesSite && matchesStatus && matchesTech;
   }), [tickets, query, site, status, tech]);
+
+  // Keep the address, the remembered view and the Previous/Next list in step with the filters.
+  useEffect(() => {
+    if (!restored.current) return;
+    const filters = { query, site, status, tech };
+    const search = filtersToSearch(filters, sites);
+    if (window.location.search !== search) window.history.replaceState(window.history.state, "", `${window.location.pathname}${search}`);
+    try {
+      if (isDefaultFilters(filters)) window.localStorage.removeItem(SAVED_FILTERS_KEY);
+      else window.localStorage.setItem(SAVED_FILTERS_KEY, JSON.stringify(filters));
+      window.sessionStorage.setItem(LIST_CONTEXT_KEY, JSON.stringify({ ids: filtered.map((ticket) => ticket.id), href: `/tickets${search}`, label: describeFilters(filters, sites) }));
+    } catch { /* storage unavailable: the address still works */ }
+  }, [query, site, status, tech, filtered, sites]);
 
   return (
     <div className="page-wrap">
@@ -52,6 +86,7 @@ export function TicketListView({ tickets, sites, techs }: { tickets: Ticket[]; s
             <input className="input input-with-icon" placeholder="Search by ticket, requester, school, category..." value={query} onChange={(event) => setQuery(event.target.value)} />
           </label>
           <div className="flex flex-wrap gap-2">
+            {!isDefaultFilters({ query, site, status, tech }) ? <button type="button" className="btn text-xs" onClick={resetFilters}>Reset filters</button> : null}
             <FilterSelect label="School" value={site} onChange={setSite}>
               <option value="all">All schools</option>
               <option value="unrouted">Unrouted</option>
@@ -84,14 +119,14 @@ export function TicketListView({ tickets, sites, techs }: { tickets: Ticket[]; s
           <span aria-hidden />
         </div>
 
-        {filtered.length ? <div>{filtered.map((ticket) => <TicketRow key={ticket.id} ticket={ticket} />)}</div> : (
+        {filtered.length ? <div>{filtered.map((ticket) => <TicketRow key={ticket.id} ticket={ticket} preview />)}</div> : (
           <div className="grid min-h-80 place-items-center p-8 text-center">
             <div>
               <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-lg bg-[var(--ink-3)]"><Search className="gold" /></span>
               <h2 className="display text-xl">No tickets found</h2>
               <p className="muted mt-2">Clear a filter or create a new request.</p>
               <div className="mt-5 flex justify-center gap-2">
-                <button className="btn" onClick={() => { setQuery(""); setSite("all"); setStatus("open"); setTech("all"); }}>Clear filters</button>
+                <button className="btn" onClick={resetFilters}>Clear filters</button>
                 <Link href="/tickets/new" className="btn btn-primary"><Plus size={14} /> New request</Link>
               </div>
             </div>

@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { ReplyTag } from "@/components/reply-markers";
+import { RequestPreview } from "@/components/request-preview";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 import { SiteBadge } from "@/components/site-badge";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
 import type { Ticket } from "@/lib/types";
 
-export function TicketRow({ ticket, compact = false }: { ticket: Ticket; compact?: boolean }) {
+export function TicketRow({ ticket, compact = false, preview = false }: { ticket: Ticket; compact?: boolean; preview?: boolean }) {
   return (
     <Link href={`/tickets/${ticket.id}`} className={`group grid items-center gap-3 border-b divider px-4 transition-colors last:border-0 hover:bg-[var(--ink-3)]/70 sm:grid-cols-[minmax(0,1fr)_132px_104px_132px_24px] sm:gap-4 sm:px-5 ${compact ? "min-h-16 py-2" : "min-h-[78px] py-3"}`}>
       <div className="flex min-w-0 items-start gap-3">
@@ -29,6 +30,7 @@ export function TicketRow({ ticket, compact = false }: { ticket: Ticket; compact
       <div className="hidden sm:block"><PriorityBadge priority={ticket.priority} /></div>
       <div className="hidden truncate text-xs muted sm:block">{ticket.assignee?.split(" ")[0] ?? "Unassigned"}</div>
       <ChevronRight size={16} className="muted hidden transition-transform group-hover:translate-x-1 sm:block" />
+      {preview ? <RequestPreview text={ticket.originalEmail} /> : null}
       <div className="flex items-center justify-between sm:hidden"><span className="flex items-center gap-1.5"><StatusBadge status={ticket.status} /><ReplyTag ticket={ticket} /></span><span className="text-xs muted">{ticket.assignee?.split(" ")[0] ?? "Unassigned"}</span></div>
     </Link>
   );
