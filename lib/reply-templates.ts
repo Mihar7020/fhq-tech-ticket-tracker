@@ -2,8 +2,9 @@
  * Reply templates for public comments. Edit freely: add, remove or reword.
  * Placeholders: {{firstName}} {{name}} {{school}} {{ticket}}
  * waitForReply: true ticks "Set to Waiting on requester after sending" automatically.
+ * resolveAfterSend: true ticks "Mark as Resolved after sending" automatically.
  */
-export type ReplyTemplate = { id: string; title: string; body: string; waitForReply?: boolean };
+export type ReplyTemplate = { id: string; title: string; body: string; waitForReply?: boolean; resolveAfterSend?: boolean };
 
 export const replyTemplates: ReplyTemplate[] = [
   {
@@ -48,6 +49,7 @@ export const replyTemplates: ReplyTemplate[] = [
     id: "resolved",
     title: "Resolved, closing",
     body: "Hi {{firstName}},\n\nThis should now be sorted. We'll mark the ticket ({{ticket}}) as resolved. If anything's still not right, just reply to this email and it will reopen automatically.",
+    resolveAfterSend: true,
   },
 ];
 

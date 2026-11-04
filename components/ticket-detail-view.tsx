@@ -50,6 +50,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, initialMerged
     setCcList((current) => [...new Set([...current, ...replyRecipients(initialTicket, mergedTicketList)])]);
   }
   const [waitAfterSend, setWaitAfterSend] = useState(false);
+  const [resolveAfterSend, setResolveAfterSend] = useState(false);
   const [draft, setDraft] = useState(() => ({
     subject: initialTicket.subject,
     category: initialTicket.category,
@@ -170,6 +171,7 @@ export function TicketDetailView({ initialTicket, initialTimeline, initialMerged
     const filled = fillTemplate(template.body, { name: ticket.requester, school: site?.name, ticket: ticket.number });
     setMessage((current) => (current.trim() ? `${current.trimEnd()}\n\n${filled}` : filled));
     if (template.waitForReply) setWaitAfterSend(true);
+    if (template.resolveAfterSend) { setResolveAfterSend(true); setWaitAfterSend(false); }
   }
 
   async function addComment() {
@@ -181,8 +183,11 @@ export function TicketDetailView({ initialTicket, initialTimeline, initialMerged
     setTimeline((current) => [...current, { id: result.id ?? `local-${Date.now()}`, kind: internal ? "note" : "email", actor: "You", title: internal ? "Internal note" : "Reply sent by you", body: message, at: "Just now", sentAt: new Date().toISOString(), role: internal ? "note" : "team", internal }]);
     toast(internal ? "Internal note saved" : result.emailStatus === "failed" ? "Comment saved, but email reply failed" : result.emailStatus === "sent" ? "Comment saved and emailed" : "Public comment added"); setMessage(""); setCcList(replyRecipients(ticket, mergedTicketList));
     if (!internal) setTicket((current) => ({ ...current, reopenedBy: undefined, awaitingReply: false }));
-    if (!internal && waitAfterSend && ticket.status !== "Waiting on requester") await updateStatus("Waiting on requester");
+    // Only close the ticket if the email actually went out, so a failed send never silently resolves it.
+    if (!internal && resolveAfterSend && result.emailStatus !== "failed" && ticket.status !== "Resolved") await updateStatus("Resolved");
+    else if (!internal && waitAfterSend && ticket.status !== "Waiting on requester") await updateStatus("Waiting on requester");
     setWaitAfterSend(false);
+    setResolveAfterSend(false);
   }
 
 
@@ -449,10 +454,16 @@ export function TicketDetailView({ initialTicket, initialTimeline, initialMerged
               ) : null}
               <div className="mt-3 flex flex-wrap items-center justify-end gap-3">
                 {noteMode === "Public comment" ? (
-                  <label className="muted mr-auto flex items-center gap-2 text-xs">
-                    <input type="checkbox" checked={waitAfterSend} onChange={(event) => setWaitAfterSend(event.target.checked)} />
-                    Set to Waiting on requester after sending
-                  </label>
+                  <>
+                    <label className="muted mr-auto flex items-center gap-2 text-xs">
+                      <input type="checkbox" checked={waitAfterSend} onChange={(event) => { setWaitAfterSend(event.target.checked); if (event.target.checked) setResolveAfterSend(false); }} />
+                      Set to Waiting on requester after sending
+                    </label>
+                    <label className="muted flex items-center gap-2 text-xs">
+                      <input type="checkbox" checked={resolveAfterSend} onChange={(event) => { setResolveAfterSend(event.target.checked); if (event.target.checked) setWaitAfterSend(false); }} />
+                      Mark as Resolved after sending
+                    </label>
+                  </>
                 ) : null}
                 <button disabled={!message.trim() || saving} onClick={addComment} className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-40">
                   {noteMode === "Public comment" ? <Send size={15} /> : <Save size={15} />}
