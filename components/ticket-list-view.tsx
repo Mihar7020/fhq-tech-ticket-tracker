@@ -7,6 +7,7 @@ import { ChevronDown, Plus, Search } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { TicketRow } from "@/components/ticket-row";
 import { isActiveTicket } from "@/lib/ticket-status";
+import { needsReply, repliesFirst } from "@/lib/needs-reply";
 import { DEFAULT_FILTERS, LIST_CONTEXT_KEY, SAVED_FILTERS_KEY, describeFilters, filtersToSearch, isDefaultFilters, type TicketFilters } from "@/lib/ticket-filters";
 import type { Site, Tech, Ticket } from "@/lib/types";
 
@@ -55,8 +56,10 @@ export function TicketListView({ tickets, sites, techs, initialFilters = null }:
     const matchesTech = tech === "all" || ticket.assignee === tech || (tech === "unassigned" && !ticket.assignee);
     return matchesQuery && matchesSite && matchesStatus && matchesTech;
   }), [tickets, query, site, status, tech]);
-
   const ordered = useMemo(() => repliesFirst(filtered), [filtered]);
+  const replyCount = useMemo(() => filtered.filter(needsReply).length, [filtered]);
+
+  // Keep the address, the remembered view and the Previous/Next list in step with the filters.
   useEffect(() => {
     if (!restored.current) return;
     const filters = { query, site, status, tech };
@@ -120,6 +123,16 @@ export function TicketListView({ tickets, sites, techs, initialFilters = null }:
         </div>
 
         {ordered.length ? (
+          <div>
+            {replyCount ? <div className="flex items-center gap-2 border-b divider bg-[#fdf3ea] px-5 py-2 text-[11px] font-bold text-[#7c2d12]"><span className="h-2 w-2 rounded-full bg-[#c2410c]" aria-hidden="true" />Needs reply ({replyCount})</div> : null}
+            {ordered.map((ticket, index) => (
+              <div key={ticket.id}>
+                {replyCount && index === replyCount ? <div className="border-b divider bg-[var(--ink-3)] px-5 py-2 text-[11px] font-bold muted">Everything else</div> : null}
+                <TicketRow ticket={ticket} preview />
+              </div>
+            ))}
+          </div>
+        ) : (
           <div className="grid min-h-80 place-items-center p-8 text-center">
             <div>
               <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-lg bg-[var(--ink-3)]"><Search className="gold" /></span>

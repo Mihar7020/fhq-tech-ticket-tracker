@@ -3,7 +3,8 @@ import { AppShell } from "@/components/app-shell";
 import { SilentRefresh } from "@/components/silent-refresh";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { hasDatabase } from "@/lib/ticket-data";`nimport { replyState } from "@/lib/ticket-status";
+import { hasDatabase } from "@/lib/ticket-data";
+import { replyState } from "@/lib/ticket-activity";
 
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();

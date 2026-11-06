@@ -37,6 +37,7 @@ export function AppShell({ children, session, counts }: { children: React.ReactN
     document.title = replies ? `(${replies}) ${base}` : base;
   }, [replies, pathname]);
 
+  useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -60,7 +61,8 @@ export function AppShell({ children, session, counts }: { children: React.ReactN
       >
         <Icon size={17} strokeWidth={active ? 2.4 : 1.8} />
         <span className="flex-1">{item.label}</span>
-        {item.alert ? <span title=`${item.alert} ticket${item.alert === 1 ? "" : "s"} with a new reply` aria-label=`${item.alert} new replies` className="min-w-5 rounded-full bg-[#c2410c] px-1.5 py-0.5 text-center text-[10px] font-bold text-white">{item.alert}</span> : null} px-1.5 py-0.5 text-center text-[10px]", active ? "bg-[var(--gold)] text-white" : "bg-[var(--ink-3)]")}>{item.count}</span> : null}
+        {item.alert ? <span title={`${item.alert} ticket${item.alert === 1 ? "" : "s"} with a new reply`} aria-label={`${item.alert} new replies`} className="min-w-5 rounded-full bg-[#c2410c] px-1.5 py-0.5 text-center text-[10px] font-bold text-white">{item.alert}</span> : null}
+        {item.count ? <span className={clsx("min-w-5 rounded-md px-1.5 py-0.5 text-center text-[10px]", active ? "bg-[var(--gold)] text-white" : "bg-[var(--ink-3)]")}>{item.count}</span> : null}
       </Link>
     );
   };

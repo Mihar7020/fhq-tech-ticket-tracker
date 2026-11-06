@@ -2,22 +2,23 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { ArrowUpRight, ClipboardList, Inbox, Map, Plus, UserCheck } from "lucide-react";
+import { ArrowUpRight, ClipboardList, Inbox, Plus, UserCheck } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { TicketRow } from "@/components/ticket-row";
 import { isActiveTicket } from "@/lib/ticket-status";
+import { needsReply, repliesFirst } from "@/lib/needs-reply";
 import type { Site, Tech, Ticket } from "@/lib/types";
 
 type SiteMetric = Site & { open: number; atRisk: number; median: number; trend: number };
 
 export function DashboardView({ tickets, techs, siteMetrics }: { tickets: Ticket[]; techs: Tech[]; siteMetrics: SiteMetric[] }) {
   const openTickets = useMemo(() => tickets.filter(isActiveTicket), [tickets]);
-  const nextTickets = useMemo(() => openTickets.slice(0, 6), [openTickets]);
+  const nextTickets = useMemo(() => repliesFirst(openTickets).slice(0, 6), [openTickets]);
   const summary = [
     { label: "Open tickets", value: openTickets.length, detail: "Across 6 schools", icon: Inbox },
+    { label: "Needs reply", value: openTickets.filter(needsReply).length, detail: "Requester is waiting on us", icon: Inbox },
     { label: "Unassigned", value: openTickets.filter((ticket) => !ticket.assignee).length, detail: "Ready to pick up", icon: UserCheck },
     { label: "High priority", value: openTickets.filter((ticket) => ticket.priority === "Critical" || ticket.priority === "High").length, detail: "Critical or high", icon: ClipboardList },
-    { label: "Schools", value: siteMetrics.length, detail: "FHQTC support sites", icon: Map },
   ];
 
   return (
