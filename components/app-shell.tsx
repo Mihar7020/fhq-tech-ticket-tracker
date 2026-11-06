@@ -21,16 +21,22 @@ const intelligenceBase = [
   { label: "Reports", href: "/reports", icon: BarChart3 },
 ];
 
-type NavItem = { label: string; href: string; icon: typeof Gauge; count?: number };
+type NavItem = { label: string; href: string; icon: typeof Gauge; count?: number; alert?: number };
 
-export function AppShell({ children, session, counts }: { children: React.ReactNode; session: { name: string; email: string; role: string }; counts: { tickets: number; incidents: number; directory: number } }) {
+export function AppShell({ children, session, counts }: { children: React.ReactNode; session: { name: string; email: string; role: string }; counts: { tickets: number; incidents: number; directory: number; replies?: number } }) {
   const pathname = usePathname();
-  const primary: NavItem[] = primaryBase.map((item) => ({ ...item, count: item.href === "/tickets" ? counts.tickets : item.href === "/incidents" ? counts.incidents : undefined }));
+  const primary: NavItem[] = primaryBase.map((item) => ({ ...item, count: item.href === "/tickets" ? counts.tickets : item.href === "/incidents" ? counts.incidents : undefined, alert: item.href === "/tickets" ? counts.replies : undefined }));
   const intelligence: NavItem[] = intelligenceBase.map((item) => ({ ...item, count: item.href === "/directory" ? counts.directory : undefined }));
   const [paletteOpen, setPaletteOpen] = useState(false);
   const openPalette = useCallback(() => setPaletteOpen(true), [setPaletteOpen]);
 
+  // "(3) Live queue" in the browser tab, so new replies show even when you're in another tab.
+  const replies = counts.replies ?? 0;
   useEffect(() => {
+    const base = document.title.replace(/^\(\d+\)\s*/, "");
+    document.title = replies ? `(${replies}) ${base}` : base;
+  }, [replies, pathname]);
+
     const handler = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -54,7 +60,7 @@ export function AppShell({ children, session, counts }: { children: React.ReactN
       >
         <Icon size={17} strokeWidth={active ? 2.4 : 1.8} />
         <span className="flex-1">{item.label}</span>
-        {item.count ? <span className={clsx("min-w-5 rounded-md px-1.5 py-0.5 text-center text-[10px]", active ? "bg-[var(--gold)] text-white" : "bg-[var(--ink-3)]")}>{item.count}</span> : null}
+        {item.alert ? <span title=`${item.alert} ticket${item.alert === 1 ? "" : "s"} with a new reply` aria-label=`${item.alert} new replies` className="min-w-5 rounded-full bg-[#c2410c] px-1.5 py-0.5 text-center text-[10px] font-bold text-white">{item.alert}</span> : null} px-1.5 py-0.5 text-center text-[10px]", active ? "bg-[var(--gold)] text-white" : "bg-[var(--ink-3)]")}>{item.count}</span> : null}
       </Link>
     );
   };

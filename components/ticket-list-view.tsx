@@ -56,7 +56,7 @@ export function TicketListView({ tickets, sites, techs, initialFilters = null }:
     return matchesQuery && matchesSite && matchesStatus && matchesTech;
   }), [tickets, query, site, status, tech]);
 
-  // Keep the address, the remembered view and the Previous/Next list in step with the filters.
+  const ordered = useMemo(() => repliesFirst(filtered), [filtered]);
   useEffect(() => {
     if (!restored.current) return;
     const filters = { query, site, status, tech };
@@ -65,9 +65,9 @@ export function TicketListView({ tickets, sites, techs, initialFilters = null }:
     try {
       if (isDefaultFilters(filters)) window.localStorage.removeItem(SAVED_FILTERS_KEY);
       else window.localStorage.setItem(SAVED_FILTERS_KEY, JSON.stringify(filters));
-      window.sessionStorage.setItem(LIST_CONTEXT_KEY, JSON.stringify({ ids: filtered.map((ticket) => ticket.id), href: `/tickets${search}`, label: describeFilters(filters, sites) }));
+      window.sessionStorage.setItem(LIST_CONTEXT_KEY, JSON.stringify({ ids: ordered.map((ticket) => ticket.id), href: `/tickets${search}`, label: describeFilters(filters, sites) }));
     } catch { /* storage unavailable: the address still works */ }
-  }, [query, site, status, tech, filtered, sites]);
+  }, [query, site, status, tech, ordered, sites]);
 
   return (
     <div className="page-wrap">
@@ -119,7 +119,7 @@ export function TicketListView({ tickets, sites, techs, initialFilters = null }:
           <span aria-hidden />
         </div>
 
-        {filtered.length ? <div>{filtered.map((ticket) => <TicketRow key={ticket.id} ticket={ticket} preview />)}</div> : (
+        {ordered.length ? (
           <div className="grid min-h-80 place-items-center p-8 text-center">
             <div>
               <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-lg bg-[var(--ink-3)]"><Search className="gold" /></span>
@@ -135,7 +135,7 @@ export function TicketListView({ tickets, sites, techs, initialFilters = null }:
 
         <div className="flex items-center justify-between border-t divider px-5 py-3 text-[11px] muted">
           <span>{filtered.length} tickets</span>
-          <span className="hide-mobile">Sorted newest first</span>
+          <span className="hide-mobile">New replies first, then newest</span>
         </div>
       </section>
     </div>
