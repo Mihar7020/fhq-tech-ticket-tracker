@@ -34,6 +34,27 @@ const ticketInclude = {
 } satisfies Prisma.TicketInclude;
 
 type TicketRow = Prisma.TicketGetPayload<{ include: typeof ticketInclude }>;
+// Lists need the original request for previews, not every reply body or saved HTML.
+const ticketCardInclude = {
+  ...ticketInclude,
+  site: { select: { code: true, name: true } },
+  person: { select: { fullName: true, roleTitle: true } },
+  assignee: { select: { name: true } },
+  messages: {
+    orderBy: { sentAt: "asc" as const }, take: 1,
+    select: {
+      id: true, direction: true, sentAt: true, fromName: true, fromAddress: true,
+      textBody: true, toAddresses: true, ccAddresses: true,
+      attachments: ticketInclude.messages.include.attachments,
+    },
+  },
+  auditEvents: {
+    where: { action: "REOPENED_BY_REQUESTER_REPLY" },
+    select: { action: true, createdAt: true },
+    orderBy: { createdAt: "desc" as const }, take: 1,
+  },
+} satisfies Prisma.TicketInclude;
+type TicketCardRow = Prisma.TicketGetPayload<{ include: typeof ticketCardInclude }>;
 const DISPLAY_TIME_ZONE = "America/Regina";
 
 function relative(date: Date) {
@@ -46,7 +67,7 @@ function relative(date: Date) {
   return date.toLocaleDateString("en-CA", { timeZone: DISPLAY_TIME_ZONE, month: "short", day: "numeric", year: dateYear === currentYear ? undefined : "numeric" });
 }
 
-export function mapTicket(row: TicketRow): Ticket {
+export function mapTicket(row: TicketCardRow): Ticket {
   const firstMessage = row.messages[0];
   const digest = row.digests[0]?.revisions[0];
   const requester = row.person?.fullName || row.personNameAtIntake || firstMessage?.fromName || row.requesterEmailAtIntake.split("@")[0] || "Unknown requester";
@@ -91,8 +112,21 @@ export function mapTicket(row: TicketRow): Ticket {
 
 export async function getTickets() {
   if (!hasDatabase()) return [];
-  const rows = await db.ticket.findMany({ include: ticketInclude, orderBy: { createdAt: "desc" } });
-  return rows.map(mapTicket);
+  const rows = await db.ticket.findMany({ include: ticketCardInclude, orderBy: { createdAt: "desc" } });
+  if (!rows.length) return [];
+  // Keep reply markers accurate using small metadata rows, without fetching reply bodies.
+  const messages = await db.message.findMany({
+    where: { ticketId: { in: rows.map((row) => row.id) } },
+    select: { ticketId: true, id: true, direction: true, sentAt: true, fromName: true, fromAddress: true },
+    orderBy: { sentAt: "asc" },
+  });
+  const byTicket = new Map<string, typeof messages>();
+  for (const message of messages) {
+    const group = byTicket.get(message.ticketId) ?? [];
+    group.push(message);
+    byTicket.set(message.ticketId, group);
+  }
+  return rows.map((row) => ({ ...mapTicket(row), ...replyState(byTicket.get(row.id) ?? [], row.auditEvents, row.status) }));
 }
 
 export async function getTicket(id: string) {
@@ -159,7 +193,7 @@ export async function getSites(): Promise<Site[]> {
 
 export async function getTechs(): Promise<Tech[]> {
   if (!hasDatabase()) return coreTechs;
-  const rows = await db.user.findMany({ where: { active: true, role: { in: ["ADMIN", "TECH"] } }, include: { assignedTickets: { where: { status: { notIn: ["RESOLVED", "CLOSED", "MERGED"] } } }, primarySites: true }, orderBy: { name: "asc" } });
+  const rows = await db.user.findMany({ where: { active: true, role: { in: ["ADMIN", "TECH"] } }, select: { id: true, name: true, assignedTickets: { where: { status: { notIn: ["RESOLVED", "CLOSED", "MERGED"] } }, select: { id: true } }, primarySites: { select: { code: true } } }, orderBy: { name: "asc" } });
   return rows.map((user) => ({ id: user.id, name: user.name, initials: user.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2), color: "#256b73", open: user.assignedTickets.length, capacity: 12, sites: user.primarySites.map((site) => site.code), status: "Available" }));
 }
 

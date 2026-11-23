@@ -5,6 +5,15 @@ import { people, sites } from "@/lib/demo-data";
 const mime = (overrides: { from?: string; id?: string; subject?: string; headers?: string; body?: string } = {}) => Buffer.from(`From: ${overrides.from ?? "Tara Whitehorse <tara.whitehorse@standingbuffalo.edu>"}\r\nTo: fhqtctech@example.org\r\nMessage-ID: ${overrides.id ?? "<msg-1@example.org>"}\r\nSubject: ${overrides.subject ?? "Projector no signal"}\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n${overrides.headers ?? ""}\r\n${overrides.body ?? "The projector in room 204 says no signal. Please help before 10:40 AM."}`);
 
 describe("ingest pipeline", () => {
+  it.each(["From: Teacher <teacher@example.org>", "-----Original Message-----"])("preserves a forwarded request below %s", async (marker) => {
+    const repo = createMemoryRepository({ people, sites });
+    const body = `Please help her.\n\n${marker}\nSent: Monday\nSubject: Laptop problem\n\nMy laptop will not turn on.\n> The charging light is off too.`;
+    await ingestMime(mime({ id: "<forwarded-request>", subject: "Fwd: Laptop problem", body }), repo);
+    expect(repo.records[0].textBody).toContain(marker);
+    expect(repo.records[0].textBody).toContain("My laptop will not turn on.");
+    expect(repo.records[0].textBody).toContain("> The charging light is off too.");
+    expect(repo.records[0].senderEmail).toBe("tara.whitehorse@standingbuffalo.edu");
+  });
   it("routes, digests, triages, and preserves a clean email", async () => { const repo = createMemoryRepository({ people, sites }); const result = await ingestMime(mime(), repo); expect(result.kind).toBe("created"); expect(repo.records[0].route.outcome).toBe("exact"); expect(repo.records[0].digest.room).toBe("204"); expect(repo.records[0].triage.category).toBe("AV & displays"); });
   it("detects duplicate Message-IDs", async () => { const repo = createMemoryRepository({ people, sites, messages: [{ messageId: "<msg-1@example.org>", threadId: "t1", subject: "Projector no signal" }] }); expect((await ingestMime(mime(), repo)).kind).toBe("duplicate"); });
   it("ignores out-of-office loops", async () => { const repo = createMemoryRepository({ people, sites }); const result = await ingestMime(mime({ id: "<auto>", headers: "Auto-Submitted: auto-replied\r\n", body: "I am away" }), repo); expect(result.kind).toBe("ignored"); });

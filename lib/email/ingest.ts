@@ -61,6 +61,9 @@ export async function ingestMime(raw: Buffer, repository: IngestRepository): Pro
     return { kind: "duplicate", reason: "Message-ID already ingested." };
   }
   const cleanText = stripQuotedReply(parsed.text ?? "");
+  // Keep forwarded requests and quoted history intact in the stored/displayed email.
+  // Routing and triage continue to use the existing cleaned text.
+  const fullText = parsed.text ?? "";
   const [people, sites] = await Promise.all([repository.listPeople(), repository.listSites()]);
   const route = resolveRoute({ senderEmail: sender.address, displayName: sender.name, body: cleanText, people, sites });
   const digest = extractDigest(cleanText);
@@ -73,6 +76,7 @@ export async function ingestMime(raw: Buffer, repository: IngestRepository): Pro
   }));
   const addresses = (value?: AddressObject | AddressObject[]) => [...(value ? (Array.isArray(value) ? value : [value]) : [])].flatMap((item) => item.value.map((address) => address.address?.toLowerCase() ?? "")).filter(Boolean);
   const record: IngestRecord = { publicId: `FHQ-${Date.now().toString().slice(-6)}`, internetMessageId, inReplyTo: parsed.inReplyTo, references, senderEmail: sender.address.toLowerCase(), senderName: sender.name, recipients: addresses(parsed.to), ccRecipients: addresses(parsed.cc), subject: parsed.subject?.slice(0, 500) || "(no subject)", normalizedSubject: normalizeSubject(parsed.subject ?? ""), textBody: cleanText, htmlBodySanitized: parsed.html ? sanitizeEmailHtml(parsed.html) : undefined, sentAt: parsed.date ?? new Date(), threadMatch, route, digest, triage, attachments };
+  record.textBody = fullText;
   const saved = await repository.save(record);
   return { kind: threadMatch.kind === "match" ? "updated" : "created", ...saved };
 }
